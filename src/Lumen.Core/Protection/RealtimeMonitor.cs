@@ -722,6 +722,13 @@ public sealed class RealtimeMonitor : IDisposable
         finally
         {
             session.WorkerFinished();
+
+            // The read buffer is pooled per thread. Without this, every worker thread
+            // would keep a buffer of the inspection limit alive for as long as the
+            // thread lives, which for a pool of eight workers is eight times the
+            // limit held for nothing.
+            Lumen.Core.Scanning.ProbeReader.ReleaseThreadBuffer();
+
             try
             {
                 workerCts.Dispose();

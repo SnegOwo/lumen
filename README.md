@@ -67,7 +67,7 @@ detection is never a black box. Rules are grouped by what they actually are:
 | `Behavior` | Packing, obfuscation, suspicious API imports. |
 | `Reputation` | A local hash list match. Lumen never performs a network lookup. |
 
-**51 rules**, covering: the EICAR signature and hash, a data-driven signature engine
+**64 rules**, covering: the EICAR signature and hash, a data-driven signature engine
 (ASCII, hex and token-group patterns loaded from a JSON rule file), a hand-written
 portable-executable parser (headers, sections, entropy, import tables, packing markers,
 timestamp anomalies), script analysis (LOLBins, PowerShell obfuscation, AMSI bypass,
@@ -75,13 +75,35 @@ persistence commands, AV tampering, credential theft, reverse shells), Office ma
 OLE detection, PDF analysis (embedded JavaScript, launch actions, embedded executables),
 archive analysis (nested archives, password-protected files, zip bombs, executables
 inside archives), Windows shortcut analysis, entropy and packing heuristics, a
-transparent risk score, and a local known-bad hash list.
+transparent risk score, a local known-bad hash list, and a combination scorer that turns
+several weak signals on one file into a single finding with every contribution listed.
 
 **A clean result is not proof that a file is safe.** Lumen's rules are small and transparent on
 purpose. Microsoft Defender remains the authoritative scanner; Lumen tells you where to look.
 
 The built-in hash list contains only the EICAR hash. Lumen does not ship hashes recalled from
 memory — a wrong hash is a false signature. Add your own in `%LOCALAPPDATA%\Lumen\reputation.json`.
+
+### Aggressive mode
+
+Off by default. When it is on, Lumen:
+
+- runs the extra rule tier — DLL sideloading, anti-analysis and sandbox evasion, shadow-copy
+  deletion, ransom-note wording, bulk file renames, mining configurations, Office DDE,
+  external template relationships, PowerShell download cradles, protector sections, a missing
+  import table, an entry point outside a section, and unusual section names;
+- watches the folders a dropper actually lands in — **Downloads**, the per-user **Startup**
+  folder and the per-user **temp** folder — on top of the usual ones;
+- stops waiting before it inspects a new file and uses six workers instead of three;
+- can quarantine a high-confidence match without asking.
+
+The extra rules are noisier than the standard ones, so they stay out of the way until somebody
+asks for them. Every one of them is documented and tested, and each had to prove it does *not*
+fire on a realistic healthy file. Before shipping, the aggressive set was run over 25 126 real
+files on a development machine, and the two rules that were still too noisy were tightened
+before they went in.
+
+Turning it on or off rebuilds the detector set and the monitor in place. No restart.
 
 ### Quarantine vault
 
@@ -134,6 +156,33 @@ step, and the engine fails closed: on any error it stops, keeps the vault copy, 
 exactly which steps ran.
 
 ---
+
+## Performance
+
+Lumen is meant to be left running, so it has to be cheap when it is doing nothing.
+
+| | |
+|---|---|
+| Idle CPU | **0.0% of a core** |
+| Startup to first window | ~1.2 s |
+| Memory | ~110 MB private, ~195 MB working set (the usual WPF baseline) |
+
+These numbers are not decoration — they are enforced. `tests\Lumen.Core.Tests\PerformanceTests.cs`
+asserts an **allocation budget** rather than a wall-clock time, because timing tests are flaky on
+a loaded machine and an allocation budget is not:
+
+| budget | measured |
+|---|---|
+| Reading a 64 KB file | **296 bytes** allocated (the read buffer is pooled) |
+| Reading *and* inspecting a 64 KB file | **3,248 bytes** allocated |
+| Scanning 64 files (4 MB read) | **208 KB** allocated — about 20× less than the bytes it read |
+
+Scanning the same file twice costs the same both times, so nothing grows over a long run.
+
+One of those budgets exists because of a bug only a measurement would find. A progress bar that
+set `IsIndeterminate="True"` statically started a storyboard that repeated forever behind a
+collapsed panel: **11% of a core, continuously, for no reason.** `AnimationBudgetTests` now
+fails the build if that ever comes back.
 
 ## Architecture
 

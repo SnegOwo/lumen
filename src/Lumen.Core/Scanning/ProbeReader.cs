@@ -66,6 +66,14 @@ public sealed class ProbeReader
 
             var length = stream.Length;
             var toRead = (int)Math.Min(length, _maxInspectBytes);
+
+            // An empty file needs no buffer at all.
+            if (toRead == 0)
+            {
+                var empty = new FileProbe(path, length, attributes, ReadOnlyMemory<byte>.Empty, contentTruncated: false);
+                return new ProbeReadResult(empty, null);
+            }
+
             var buffer = RentBuffer(toRead);
             var read = 0;
 

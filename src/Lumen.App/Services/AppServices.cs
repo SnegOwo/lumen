@@ -566,8 +566,15 @@ public sealed class AppServices : IDisposable
             }
 
             var path = created.Created[0];
-            var registry = Lumen.Core.Detection.DetectorRegistry.CreateDefault();
+            var registry = Lumen.Core.Detection.DetectorRegistry.CreateDefault(
+                signatureEngine: null,
+                includeAggressive: Settings.AggressiveMode);
             var probe = new Lumen.Core.Scanning.ProbeReader(1024 * 1024).Read(path, File.GetAttributes(path), CancellationToken.None);
+
+            // The read buffer is pooled per thread. Give it back so the interface
+            // thread is not holding a megabyte for the rest of the session.
+            Lumen.Core.Scanning.ProbeReader.ReleaseThreadBuffer();
+
             if (!probe.Success || probe.Probe is null) return null;
 
             var findings = registry.Inspect(probe.Probe, CancellationToken.None);

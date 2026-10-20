@@ -1,5 +1,6 @@
 using Lumen.Core.Abstractions;
 using Lumen.Core.Detection;
+using Lumen.Core.Models;
 using Lumen.Core.Scanning;
 using Lumen.Core.Util;
 using Xunit.Abstractions;
@@ -195,8 +196,45 @@ public sealed class PerformanceTests
     }
 
     [Fact]
-    public void Signature_rules_find_the_same_place_as_a_plain_search()
+    public async Task The_digest_of_a_small_file_is_the_digest_of_the_whole_file()
     {
+        // The scanner takes the digest from the bytes it already has when it read the
+        // whole file. The quarantine service compares that digest with a digest of the
+        // whole file, so the two have to be the same.
+        using var temp = new TempDirectory();
+        var path = temp.FileBytes("small.bin", SyntheticBytes(4096, 21));
+
+        var outcome = await ScanWithMatch(temp.Root, path);
+        var detection = Assert.Single(outcome.Detections);
+
+        Assert.Equal(HashUtil.Sha256File(path, CancellationToken.None), detection.Sha256);
+    }
+
+    [Fact]
+    public async Task The_digest_of_a_truncated_file_is_still_the_digest_of_the_whole_file()
+    {
+        // A file that is too big to read completely is streamed for the digest. A digest
+        // of the prefix would never match the digest of the whole file and would block
+        // the quarantine for good.
+        using var temp = new TempDirectory();
+        var path = temp.FileBytes("large.bin", SyntheticBytes(300_000, 23));
+
+        var outcome = await ScanWithMatch(temp.Root, path, maxInspectBytes: 64 * 1024);
+        var detection = Assert.Single(outcome.Detections);
+
+        Assert.Equal(HashUtil.Sha256File(path, CancellationToken.None), detection.Sha256);
+    }
+
+    private static async Task<ScanOutcome> ScanWithMatch(string root, string path, long maxInspectBytes = 1024 * 1024)
+    {
+        var registry = new DetectorRegistry([new FakeDetector("test.match", _ => true)]);
+        var engine = new ScanEngine(registry, new FakeClock(), new FakeLog());
+        var request = TestData.Request(root) with { MaxInspectBytes = maxInspectBytes };
+        return await engine.ScanAsync(request, null, CancellationToken.None);
+    }
+
+    [Fact]
+    public void Signature_rules_find_the_same_place_as_a_plain_search()    {
         // The signature engine searches with the vector instructions of the processor. The
         // rules have to fire on exactly the same bytes as a plain byte by byte search.
         var engine = BuildEngine();
