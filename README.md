@@ -10,7 +10,8 @@ result proves a file is safe.
 | | |
 |---|---|
 | **Stack** | C# 14 / .NET 10, WPF (Windows Forms is used only for the notification-area icon) |
-| **Projects** | `Lumen.Core` (net10.0, platform-neutral) · `Lumen.App` (net10.0-windows) · `Lumen.Core.Tests` (xunit) |
+| **Projects** | `Lumen.Core` (net10.0, platform-neutral) · `Lumen.App` (net10.0-windows) · `Lumen.Core.Tests` (xunit) · `Lumen.App.Tests` (xunit) |
+| **Languages** | English and French |
 | **Elevated?** | No. `asInvoker`, per-user, no driver, no service |
 | **Network?** | Never. No uploads, no hash lookups, no telemetry |
 | **Data location** | `%LOCALAPPDATA%\Lumen` — nothing is written to the install folder, ProgramData or the registry |
@@ -60,8 +61,21 @@ detection is never a black box. Rules are grouped by what they actually are:
 | `Behavior` | Packing, obfuscation, suspicious API imports. |
 | `Reputation` | A local hash list match. Lumen never performs a network lookup. |
 
+**51 rules**, covering: the EICAR signature and hash, a data-driven signature engine
+(ASCII, hex and token-group patterns loaded from a JSON rule file), a hand-written
+portable-executable parser (headers, sections, entropy, import tables, packing markers,
+timestamp anomalies), script analysis (LOLBins, PowerShell obfuscation, AMSI bypass,
+persistence commands, AV tampering, credential theft, reverse shells), Office macro and
+OLE detection, PDF analysis (embedded JavaScript, launch actions, embedded executables),
+archive analysis (nested archives, password-protected files, zip bombs, executables
+inside archives), Windows shortcut analysis, entropy and packing heuristics, a
+transparent risk score, and a local known-bad hash list.
+
 **A clean result is not proof that a file is safe.** Lumen's rules are small and transparent on
 purpose. Microsoft Defender remains the authoritative scanner; Lumen tells you where to look.
+
+The built-in hash list contains only the EICAR hash. Lumen does not ship hashes recalled from
+memory — a wrong hash is a false signature. Add your own in `%LOCALAPPDATA%\Lumen\reputation.json`.
 
 ### Quarantine vault
 
@@ -79,6 +93,23 @@ mid-quarantine is refused, not deleted.
 
 Restore decrypts, verifies the SHA-256, and writes the file back. A corrupt vault file is
 detected and nothing is restored.
+
+### The detection alert
+
+When Lumen flags something, it does not whisper about it in a corner. A detection raises a
+loud alert window — a pulsing red border, a big headline, the details of the match, and a
+cat drawn entirely with WPF vector primitives (no image assets, no fonts, no downloads; it
+blinks and sways its tail). The alert can play a sound using only sounds that ship with
+Windows, and it offers to quarantine the file from the alert itself.
+
+Every part of it is optional and switched in Settings: the alert itself, the sound, and
+the cat. The cat has no effect on any detection. It exists because a security tool that
+takes itself too seriously is a security tool nobody opens.
+
+### Interface languages
+
+English and French, switchable in Settings. The language changes every visible string
+immediately, without a restart.
 
 ### Remediation engine (opt-in)
 

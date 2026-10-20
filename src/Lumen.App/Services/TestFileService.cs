@@ -81,4 +81,35 @@ public sealed class TestFileService
             return new TestFileResult(false, "The EICAR test file could not be created: " + ex.Message, []);
         }
     }
+
+    /// <summary>
+    /// Creates a file that is completely harmless but that Lumen's own heuristics will
+    /// flag, so the detection pipeline can be demonstrated without EICAR and without
+    /// Microsoft Defender deleting the evidence first.
+    ///
+    /// The content is plain text that merely READS like a malicious script. It does
+    /// nothing, downloads nothing and executes nothing. It exists so that a reviewer can
+    /// see a real detection end to end — including the alert, the quarantine and the
+    /// restore — on a machine they are not worried about.
+    /// </summary>
+    public TestFileResult CreateDemoSample(string folder)
+    {
+        try
+        {
+            Directory.CreateDirectory(folder);
+            var path = Path.Combine(folder, Lumen.Core.Detection.DemoSample.FileName);
+
+            File.WriteAllText(path, Lumen.Core.Detection.DemoSample.ScriptText, new UTF8Encoding(false));
+
+            return new TestFileResult(
+                true,
+                "A harmless demonstration file was created. Its text resembles a download-and-execute " +
+                "script, so Lumen's heuristics will flag it. It is not executable and does nothing.",
+                [path]);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return new TestFileResult(false, "The demonstration file could not be created: " + ex.Message, []);
+        }
+    }
 }

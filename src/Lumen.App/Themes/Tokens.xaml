@@ -103,6 +103,12 @@
     <sys:Double x:Key="Border.Width.Hairline">1</sys:Double>
     <sys:Double x:Key="Border.Width.Thick">2</sys:Double>
 
+    <!-- WPF cannot assign a double to a Thickness property (the Thickness type
+         converter only understands text), so the border width also exists as
+         a Thickness for use in BorderThickness setters. -->
+    <Thickness x:Key="Border.Thickness.Hairline">1</Thickness>
+    <Thickness x:Key="Border.Thickness.Thick">2</Thickness>
+
     <!-- ===================== Focus ring ===================== -->
 
     <Thickness x:Key="Focus.Ring.Thickness">2</Thickness>

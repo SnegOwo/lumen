@@ -22,7 +22,7 @@
     <Style x:Key="Card" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource App.SurfaceCard}" />
         <Setter Property="BorderBrush" Value="{DynamicResource App.Border}" />
-        <Setter Property="BorderThickness" Value="{StaticResource Border.Width.Hairline}" />
+        <Setter Property="BorderThickness" Value="{StaticResource Border.Thickness.Hairline}" />
         <Setter Property="CornerRadius" Value="{StaticResource Radius.Xl}" />
         <Setter Property="Padding" Value="{StaticResource Space.Lg}" />
         <Setter Property="Effect" Value="{DynamicResource Card.Effect}" />
@@ -32,7 +32,7 @@
     <Style x:Key="InsetCard" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource App.SurfaceAlt}" />
         <Setter Property="BorderBrush" Value="{DynamicResource App.Border}" />
-        <Setter Property="BorderThickness" Value="{StaticResource Border.Width.Hairline}" />
+        <Setter Property="BorderThickness" Value="{StaticResource Border.Thickness.Hairline}" />
         <Setter Property="CornerRadius" Value="{StaticResource Radius.Lg}" />
         <Setter Property="Padding" Value="{StaticResource Space.Md}" />
     </Style>

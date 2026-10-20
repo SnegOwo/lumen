@@ -15,11 +15,21 @@ public partial class ConfirmDialog : Window
         InitializeComponent();
         DataContext = options;
         Title = options.Title;
-        AutomationProperties.SetName(this, options.Title + ". " + options.Message);
+
+        // Only the title is used as the accessible name. The message is part of
+        // the dialog content and is announced from there; repeating it in the
+        // window name made a screen reader say it twice.
+        AutomationProperties.SetName(this, options.Title);
 
         ApplySeverity(options.Severity);
 
+        // Enter always means the safe choice. On a destructive dialog the
+        // cancel button is the default one, so pressing Enter cannot trigger
+        // the destructive action by accident. Before, a danger dialog had no
+        // default button at all and Enter did nothing.
         PrimaryButton.IsDefault = !options.IsDanger;
+        DangerButton.IsDefault = false;
+        CancelButton.IsDefault = options.IsDanger && options.ShowCancel;
         CancelButton.IsCancel = options.ShowCancel;
         Loaded += OnLoaded;
     }

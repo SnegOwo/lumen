@@ -23,9 +23,9 @@ public sealed class AppServices : IDisposable
 {
     private bool _disposed;
 
-    public AppServices()
+    public AppServices(AppPaths? paths = null, bool startRealtimeProtection = true)
     {
-        Paths = AppPaths.ForCurrentUser();
+        Paths = paths ?? AppPaths.ForCurrentUser();
         Paths.EnsureCreated();
 
         Clock = SystemClock.Instance;
@@ -77,6 +77,7 @@ public sealed class AppServices : IDisposable
         TestFiles = new TestFileService();
         Theme = new ThemeService();
         Dialogs = new DialogService(Theme);
+        Alerts = new Alerts.AlertService(this);
 
         var warnings = new List<string>();
         if (!string.IsNullOrWhiteSpace(SettingsStore.LoadWarning)) warnings.Add(SettingsStore.LoadWarning);
@@ -84,7 +85,7 @@ public sealed class AppServices : IDisposable
         if (!string.IsNullOrWhiteSpace(Quarantine.LoadWarning)) warnings.Add(Quarantine.LoadWarning);
         StartupWarnings = warnings;
 
-        if (Settings.RealtimeProtectionEnabled) Realtime.Start();
+        if (startRealtimeProtection && Settings.RealtimeProtectionEnabled) Realtime.Start();
 
         Log.Info(
             "App",
@@ -113,6 +114,12 @@ public sealed class AppServices : IDisposable
     public TestFileService TestFiles { get; }
     public ThemeService Theme { get; }
     public DialogService Dialogs { get; }
+
+    /// <summary>
+    /// The loud detection alert. It shows a window, plays a noise and draws a cat. It
+    /// exists because a detection nobody notices is a detection that did not happen.
+    /// </summary>
+    public Alerts.AlertService Alerts { get; }
     public IReadOnlyList<string> StartupWarnings { get; }
     public AppSettings Settings { get; private set; }
     public TrayService? Tray { get; private set; }
@@ -382,6 +389,64 @@ public sealed class AppServices : IDisposable
     }
 
     public string SanitizePath(string? path) => DisplayText.SanitizePath(path);
+
+    /// <summary>
+    /// Creates a harmless demonstration file, scans it and raises the alert exactly as a
+    /// real detection would. Nothing is quarantined and nothing is deleted.
+    ///
+    /// This exists so the detection pipeline can be shown end to end — the alert, the
+    /// rule, the file — without EICAR, without real malware, and without Microsoft
+    /// Defender removing the evidence before the camera is ready.
+    /// </summary>
+    /// <returns>The detection that was raised, or null when the sample could not be made.</returns>
+    public Core.Models.ScanDetection? TriggerDemoDetection()
+    {
+        try
+        {
+            var folder = Path.Combine(Path.GetTempPath(), "lumen-demo");
+            var created = TestFiles.CreateDemoSample(folder);
+            if (!created.Ok || created.Created.Count == 0)
+            {
+                Log.Warn("Demo", "The demonstration file could not be created: " + created.Message);
+                return null;
+            }
+
+            var path = created.Created[0];
+            var registry = Lumen.Core.Detection.DetectorRegistry.CreateDefault();
+            var probe = new Lumen.Core.Scanning.ProbeReader(1024 * 1024).Read(path, File.GetAttributes(path), CancellationToken.None);
+            if (!probe.Success || probe.Probe is null) return null;
+
+            var findings = registry.Inspect(probe.Probe, CancellationToken.None);
+            if (findings.Count == 0)
+            {
+                Log.Warn("Demo", "The demonstration file did not match any rule.");
+                return null;
+            }
+
+            var detection = new Core.Models.ScanDetection
+            {
+                FilePath = path,
+                SizeBytes = probe.Probe.SizeBytes,
+                Sha256 = Lumen.Core.Util.HashUtil.Sha256File(path, CancellationToken.None),
+                Findings = findings,
+                DetectedUtc = Clock.UtcNow
+            };
+
+            var primary = detection.PrimaryFinding;
+            Alerts.Show(
+                detection,
+                detection.FileName,
+                primary?.Title ?? "Suspicious behaviour",
+                ViewModels.Presentation.ConfidenceText(primary?.Confidence ?? Core.Models.Confidence.Medium));
+
+            return detection;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Demo", "The demonstration could not be run.", ex);
+            return null;
+        }
+    }
 
     public void Dispose()
     {
