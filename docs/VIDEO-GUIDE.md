@@ -152,7 +152,41 @@ part an AI cannot fake convincingly and a human could not draw in an afternoon.
 
 Do the Konami code **on camera**. The pause before the cat appears is the joke.
 
-### Shot 10 — the code (3:55)
+### A note on the false positives
+
+Somewhere in the middle of the video it is worth showing a rule that does **not**
+fire, because "an antivirus that cries wolf" is the real criticism of this genre.
+
+Lumen has a rule for unsigned executables. On a normal Windows machine a *lot* of
+software is unsigned, so the rule only fires when a file is unsigned **and** sits
+somewhere the user can freely write to and run from - a temp folder, AppData, the
+Downloads folder. An unsigned program in Program Files is ordinary and is not
+reported.
+
+There is a test in the suite that fails if any finding's wording contains the words
+"malware" or "virus". Lumen describes what it *observed*, and leaves the conclusion
+to the person reading it.
+
+### Shot 10 — the process killer (3:55)
+
+The one that sounds scary and is actually the careful part.
+
+Settings → Remediation: turn on **"Stop processes that are using a matched file"**.
+Then run a file and watch it. Lumen finds the process whose executable or loaded
+module *is* that file, and stops it.
+
+> "It doesn't kill anything it can't place. It doesn't touch system processes. It
+> doesn't delete the file — the file is still sitting there, and you can still decide
+> what to do with it. And every single action, including every refusal, goes into an
+> audit log."
+
+Then show the audit journal. It is a plain text file, one line per action.
+
+**The moment to slow down for:** the protection is re-checked at the instant of the
+action, not just when the process was found. A process that was ordinary a second ago
+and is protected now is refused.
+
+### Shot 11 — the code (4:15)
 
 The interesting engineering, if the audience is technical:
 

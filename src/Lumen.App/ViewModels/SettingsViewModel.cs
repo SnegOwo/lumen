@@ -183,11 +183,86 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel, IDispo
         }
     }
 
+    /// <summary>
+    /// How long the real-time monitor waits for a file to stop changing before it
+    /// inspects it. Lower means a faster answer.
+    /// </summary>
+    public int RealtimeSettleDelayMs
+    {
+        get => _services.Settings.RealtimeSettleDelayMs;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, 2000);
+            if (clamped == RealtimeSettleDelayMs) return;
+            Save(settings => settings with { RealtimeSettleDelayMs = clamped });
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(RealtimeSettleDelayText));
+        }
+    }
+
+    /// <summary>The settle delay, shown in a form a person can read.</summary>
+    public string RealtimeSettleDelayText =>
+        RealtimeSettleDelayMs == 0
+            ? Text.SettleDelayNone
+            : Text.SettleDelayMs(RealtimeSettleDelayMs);
+
+    /// <summary>
+    /// How many files the real-time monitor may inspect at the same time. More workers
+    /// mean a faster answer on a busy folder.
+    /// </summary>
+    public int RealtimeWorkerCount
+    {
+        get => _services.Settings.RealtimeWorkerCount;
+        set
+        {
+            var clamped = Math.Clamp(value, 1, 8);
+            if (clamped == RealtimeWorkerCount) return;
+            Save(settings => settings with { RealtimeWorkerCount = clamped });
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Stop the processes that are using a file the real-time monitor flagged. It
+    /// needs the remediation switch as well, and it never stops a protected process.
+    /// </summary>
+    public bool RealtimeAutoKill
+    {
+        get => _services.Settings.RealtimeAutoKill;
+        set
+        {
+            if (value == RealtimeAutoKill) return;
+            Save(settings => settings with { RealtimeAutoKill = value });
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// How long Lumen stays quiet about a file it has already raised the alert for.
+    /// </summary>
+    public int AlertCooldownSeconds
+    {
+        get => _services.Settings.AlertCooldownSeconds;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, 3600);
+            if (clamped == AlertCooldownSeconds) return;
+            Save(settings => settings with { AlertCooldownSeconds = clamped });
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(AlertCooldownText));
+        }
+    }
+
+    /// <summary>The alert cooldown, shown in a form a person can read.</summary>
+    public string AlertCooldownText =>
+        AlertCooldownSeconds == 0
+            ? Text.AlertCooldownAlways
+            : Text.AlertCooldownMinutes(Math.Max(1, AlertCooldownSeconds / 60));
+
     public bool RealtimeAutoQuarantine
     {
         get => _services.Settings.RealtimeAutoQuarantine;
-        set
-        {
+        set        {
             if (value == RealtimeAutoQuarantine) return;
             Save(settings => settings with { RealtimeAutoQuarantine = value });
             OnPropertyChanged();
@@ -330,6 +405,12 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel, IDispo
             nameof(ShowTrayNotifications),
             nameof(RealtimeProtectionEnabled),
             nameof(RealtimeAutoQuarantine),
+            nameof(RealtimeSettleDelayMs),
+            nameof(RealtimeSettleDelayText),
+            nameof(RealtimeWorkerCount),
+            nameof(RealtimeAutoKill),
+            nameof(AlertCooldownSeconds),
+            nameof(AlertCooldownText),
             nameof(RealtimeStatusText),
             nameof(RemediationEnabled),
             nameof(DetectionAlertEnabled),

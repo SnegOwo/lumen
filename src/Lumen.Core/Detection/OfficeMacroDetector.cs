@@ -64,9 +64,22 @@ public sealed class OfficeMacroDetector : IScanDetector
         var extension = Path.GetExtension(probe.FileName);
         var findings = new List<Finding>();
 
-        if (MacroEnabledExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        // The container is looked at first, because a document that carries a Visual Basic
+        // project is reported by that rule and the file name alone adds nothing to it.
+        var hasMacroProject = false;
+
+        if (content.Length >= OleMagic.Length && content[..OleMagic.Length].SequenceEqual(OleMagic))
         {
-            findings.Add(new Finding
+            hasMacroProject = AddLegacyContainerFindings(content, findings);
+        }
+        else if (ZipInspector.IsZip(content))
+        {
+            hasMacroProject = AddOpenXmlFindings(content, findings);
+        }
+
+        if (!hasMacroProject && MacroEnabledExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        {
+            findings.Insert(0, new Finding
             {
                 RuleId = "office.macro-enabled-extension",
                 Title = "Document is in a macro enabled format",
@@ -75,23 +88,15 @@ public sealed class OfficeMacroDetector : IScanDetector
                 Summary = "The file name marks this document as one that can carry macros.",
                 Detail =
                     $"The file name ends with \"{extension}\", a format in which Visual Basic code can be stored. " +
-                    "Documents are only dangerous once macros are enabled, and plenty of legitimate templates use this format.",
+                    "Nothing runs until macros are enabled, and plenty of legitimate templates use this format.",
                 Advice = Advice
             });
         }
 
-        if (content.Length >= OleMagic.Length && content[..OleMagic.Length].SequenceEqual(OleMagic))
-        {
-            AddLegacyContainerFindings(content, findings);
-            return findings;
-        }
-
-        if (ZipInspector.IsZip(content)) AddOpenXmlFindings(content, findings);
-
         return findings;
     }
 
-    private static void AddLegacyContainerFindings(ReadOnlySpan<byte> content, List<Finding> findings)
+    private static bool AddLegacyContainerFindings(ReadOnlySpan<byte> content, List<Finding> findings)
     {
         var hasVba = false;
         foreach (var marker in VbaMarkers)
@@ -141,12 +146,14 @@ public sealed class OfficeMacroDetector : IScanDetector
                 Advice = Advice
             });
         }
+
+        return hasVba;
     }
 
-    private static void AddOpenXmlFindings(ReadOnlySpan<byte> content, List<Finding> findings)
+    private static bool AddOpenXmlFindings(ReadOnlySpan<byte> content, List<Finding> findings)
     {
         var entries = ZipInspector.ListEntries(content);
-        if (entries.Count == 0) return;
+        if (entries.Count == 0) return false;
 
         ArchiveEntryInfo? macroEntry = null;
         foreach (var entry in entries)
@@ -208,12 +215,12 @@ public sealed class OfficeMacroDetector : IScanDetector
             break;
         }
 
-        if (relationships is null) return;
-        if (!ZipInspector.TryReadEntry(content, relationships, 256 * 1024, out var relationshipBytes)) return;
+        if (relationships is null) return macroEntry is not null;
+        if (!ZipInspector.TryReadEntry(content, relationships, 256 * 1024, out var relationshipBytes)) return macroEntry is not null;
 
         var text = System.Text.Encoding.UTF8.GetString(relationshipBytes);
         if (!text.Contains("TargetMode=\"External\"", StringComparison.OrdinalIgnoreCase) &&
-            !text.Contains("TargetMode='External'", StringComparison.OrdinalIgnoreCase)) return;
+            !text.Contains("TargetMode='External'", StringComparison.OrdinalIgnoreCase)) return macroEntry is not null;
 
         findings.Add(new Finding
         {
@@ -227,5 +234,7 @@ public sealed class OfficeMacroDetector : IScanDetector
                 "External templates can pull in content from the internet when the document is opened, which is worth knowing about.",
             Advice = "Check which file the link points at before you enable any content in the document."
         });
+
+        return macroEntry is not null;
     }
 }

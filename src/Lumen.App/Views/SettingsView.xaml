@@ -219,6 +219,102 @@
                         </StackPanel>
                     </CheckBox>
 
+                    <CheckBox Style="{StaticResource ToggleSwitch}"
+                              IsChecked="{Binding RealtimeAutoKill, Mode=TwoWay}"
+                              Margin="0,14,0,0"
+                              AutomationProperties.Name="{DynamicResource Strings.Settings.AutoKillName}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Strings.Settings.AutoKillLabel}" Style="{StaticResource Label}" />
+                            <TextBlock Text="{DynamicResource Strings.Settings.AutoKillBody}"
+                                       Style="{StaticResource Caption}"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+
+                    <!-- How fast it reacts -->
+                    <Border Style="{StaticResource InsetCard}" Margin="0,16,0,0" Padding="14,12">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Strings.Settings.ReactivityTitle}" Style="{StaticResource Label}" />
+                            <TextBlock Text="{DynamicResource Strings.Settings.ReactivityBody}"
+                                       Style="{StaticResource Caption}"
+                                       Margin="0,3,0,0" />
+
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource Strings.Settings.SettleDelayLabel}"
+                                           Style="{StaticResource Label}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding RealtimeSettleDelayText}"
+                                           Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                            <Slider Style="{StaticResource RangeSlider}"
+                                    Minimum="0"
+                                    Maximum="1000"
+                                    TickFrequency="50"
+                                    IsSnapToTickEnabled="False"
+                                    Value="{Binding RealtimeSettleDelayMs, Mode=TwoWay}"
+                                    Margin="0,4,0,0"
+                                    AutomationProperties.Name="{DynamicResource Strings.Settings.SettleDelayName}" />
+                            <TextBlock Text="{DynamicResource Strings.Settings.SettleDelayBody}"
+                                       Style="{StaticResource Caption}"
+                                       Margin="0,2,0,0" />
+
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource Strings.Settings.WorkerCountLabel}"
+                                           Style="{StaticResource Label}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding RealtimeWorkerCount}"
+                                           Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                            <Slider Style="{StaticResource RangeSlider}"
+                                    Minimum="1"
+                                    Maximum="8"
+                                    TickFrequency="1"
+                                    IsSnapToTickEnabled="True"
+                                    Value="{Binding RealtimeWorkerCount, Mode=TwoWay}"
+                                    Margin="0,4,0,0"
+                                    AutomationProperties.Name="{DynamicResource Strings.Settings.WorkerCountName}" />
+                            <TextBlock Text="{DynamicResource Strings.Settings.WorkerCountBody}"
+                                       Style="{StaticResource Caption}"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- How long Lumen stays quiet about a file it already reported -->
+                    <Border Style="{StaticResource InsetCard}" Margin="0,10,0,0" Padding="14,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="{DynamicResource Strings.Settings.AlertCooldownLabel}" Style="{StaticResource Label}" />
+                                <TextBlock Text="{DynamicResource Strings.Settings.AlertCooldownBody}"
+                                           Style="{StaticResource Caption}"
+                                           Margin="0,2,0,0"
+                                           AutomationProperties.Name="{DynamicResource Strings.Settings.AlertCooldownName}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding AlertCooldownText}"
+                                       Style="{StaticResource Caption}"
+                                       VerticalAlignment="Center"
+                                       Margin="12,0,0,0" />
+                        </Grid>
+                    </Border>
+
                     <!-- Watched folders -->
                     <Border Style="{StaticResource InsetCard}" Margin="0,16,0,0" Padding="14,12">
                         <StackPanel>

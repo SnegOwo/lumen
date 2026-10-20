@@ -72,6 +72,34 @@ public sealed record AppSettings
     /// </summary>
     public bool DetectionAlertCatEnabled { get; init; } = true;
 
+    /// <summary>
+    /// Stop the processes that are using a file the real-time monitor flagged.
+    ///
+    /// This is off by default and it also needs <see cref="RemediationEnabled"/>. Even
+    /// then, only processes whose executable or loaded module IS the flagged file are
+    /// stopped, and never a protected or system process.
+    /// </summary>
+    public bool RealtimeAutoKill { get; init; } = false;
+
+    /// <summary>
+    /// How long the real-time monitor waits for a file to stop changing before it
+    /// inspects it. A short delay means a faster answer; a long one means fewer
+    /// half-written files.
+    /// </summary>
+    public int RealtimeSettleDelayMs { get; init; } = 150;
+
+    /// <summary>
+    /// How many files the real-time monitor may inspect at the same time. More workers
+    /// react faster but use more CPU.
+    /// </summary>
+    public int RealtimeWorkerCount { get; init; } = 3;
+
+    /// <summary>
+    /// How long Lumen stays quiet about a file it has already raised the alert for.
+    /// Without this, a file that is touched repeatedly takes over the screen every time.
+    /// </summary>
+    public int AlertCooldownSeconds { get; init; } = 120;
+
     public static AppSettings Default => new();
 
     /// <summary>Clamps out-of-range or unknown values so a bad file cannot break startup.</summary>
@@ -85,7 +113,10 @@ public sealed record AppSettings
             Theme = theme,
             MaxInspectMegabytes = megabytes,
             RealtimeWatchFolders = NormalizeFolders(RealtimeWatchFolders),
-            RealtimeExcludedFolders = NormalizeFolders(RealtimeExcludedFolders)
+            RealtimeExcludedFolders = NormalizeFolders(RealtimeExcludedFolders),
+            RealtimeSettleDelayMs = Math.Clamp(RealtimeSettleDelayMs, 0, 2000),
+            RealtimeWorkerCount = Math.Clamp(RealtimeWorkerCount, 1, 8),
+            AlertCooldownSeconds = Math.Clamp(AlertCooldownSeconds, 0, 3600)
         };
     }
 
@@ -141,6 +172,14 @@ public sealed record AppSettings
             && RealtimeProtectionEnabled == other.RealtimeProtectionEnabled
             && RealtimeAutoQuarantine == other.RealtimeAutoQuarantine
             && RemediationEnabled == other.RemediationEnabled
+            && Language == other.Language
+            && DetectionAlertEnabled == other.DetectionAlertEnabled
+            && DetectionAlertSoundEnabled == other.DetectionAlertSoundEnabled
+            && DetectionAlertCatEnabled == other.DetectionAlertCatEnabled
+            && RealtimeAutoKill == other.RealtimeAutoKill
+            && RealtimeSettleDelayMs == other.RealtimeSettleDelayMs
+            && RealtimeWorkerCount == other.RealtimeWorkerCount
+            && AlertCooldownSeconds == other.AlertCooldownSeconds
             && RealtimeWatchFolders.SequenceEqual(other.RealtimeWatchFolders, StringComparer.OrdinalIgnoreCase)
             && RealtimeExcludedFolders.SequenceEqual(other.RealtimeExcludedFolders, StringComparer.OrdinalIgnoreCase);
     }
@@ -157,6 +196,14 @@ public sealed record AppSettings
         hash.Add(RealtimeProtectionEnabled);
         hash.Add(RealtimeAutoQuarantine);
         hash.Add(RemediationEnabled);
+        hash.Add(Language);
+        hash.Add(DetectionAlertEnabled);
+        hash.Add(DetectionAlertSoundEnabled);
+        hash.Add(DetectionAlertCatEnabled);
+        hash.Add(RealtimeAutoKill);
+        hash.Add(RealtimeSettleDelayMs);
+        hash.Add(RealtimeWorkerCount);
+        hash.Add(AlertCooldownSeconds);
         foreach (var folder in RealtimeWatchFolders) hash.Add(folder, StringComparer.OrdinalIgnoreCase);
         foreach (var folder in RealtimeExcludedFolders) hash.Add(folder, StringComparer.OrdinalIgnoreCase);
         return hash.ToHashCode();

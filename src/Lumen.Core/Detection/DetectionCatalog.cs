@@ -61,7 +61,7 @@ public static class DetectionCatalog
         new(
             "sig.amsi-bypass-marker",
             "Antimalware scan interface marker",
-            "The file mentions an internal name of the antimalware scanning function. Ordinary software does not usually refer to it.",
+            "The file mentions the internal name of the antimalware scanning function. Ordinary software does not usually refer to it. This rule reports the name in every kind of file, so a script that mentions it is only reported once.",
             FindingCategory.Signature,
             Confidence.High),
         new(
@@ -131,7 +131,7 @@ public static class DetectionCatalog
         new(
             "script.amsi-bypass",
             "Antimalware scan interface tampering",
-            "A script mentions an internal name of the antimalware scanning interface. Ordinary scripts do not need to touch it.",
+            "A script mentions an internal name of the antimalware scanning interface. Ordinary scripts do not need to touch it. The name AmsiScanBuffer is reported by the signature rules instead, so one observation is only reported once.",
             FindingCategory.Behavior,
             Confidence.Medium),
         new(
@@ -186,8 +186,8 @@ public static class DetectionCatalog
             Confidence.Medium),
         new(
             "pe.unsigned-executable",
-            "Executable without a digital signature",
-            "The executable does not carry a digital signature. Many small and open-source tools are unsigned, so this is a weak signal.",
+            "Unsigned executable in a folder the user can write to",
+            "The executable carries no digital signature and sits in a folder the user can freely write to, where any program running as that user can replace it. Being unsigned is normal on its own, so this is a low-confidence signal.",
             FindingCategory.Heuristic,
             Confidence.Low),
         new(
@@ -219,7 +219,7 @@ public static class DetectionCatalog
         new(
             "office.macro-enabled-extension",
             "Document in a macro enabled format",
-            "The file name marks this document as a format that can carry macros. Nothing runs until macros are enabled.",
+            "The file name marks this document as a format that can carry macros. Nothing runs until macros are enabled. A document whose Visual Basic project was already reported is not reported twice.",
             FindingCategory.Heuristic,
             Confidence.Medium),
         new(
@@ -264,8 +264,8 @@ public static class DetectionCatalog
         // Archives and containers.
         new(
             "archive.executable-inside",
-            "Archive containing an executable",
-            "The archive holds at least one file that can run code. Installers and software updates routinely ship executables.",
+            "Archive containing a program",
+            "The archive holds at least one file that Windows can start. Installers and software updates routinely ship programs, so this is a weak reason to look. A file that carries the executable marker is reported whatever it is called.",
             FindingCategory.Heuristic,
             Confidence.High),
         new(
@@ -303,7 +303,7 @@ public static class DetectionCatalog
         new(
             "shortcut.temp-path-target",
             "Shortcut points into a temporary folder",
-            "The shortcut launches a file from a folder meant to hold temporary downloads, which is an easy place for a payload to sit.",
+            "The shortcut launches a file from a folder meant to hold temporary downloads, which is an easy place for a payload to sit, or from a machine other than this one. A shortcut to a program the user installed under their own profile is not reported.",
             FindingCategory.Heuristic,
             Confidence.Medium),
         new(

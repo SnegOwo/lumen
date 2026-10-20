@@ -75,9 +75,24 @@ public static class Text
         if (changed) LanguageChanged?.Invoke(null, EventArgs.Empty);
     }
 
+    /// <summary>The settle delay when the user asked for no waiting at all.</summary>
+    public static string SettleDelayNone => Pick("No waiting", "Aucune attente");
+
+    /// <summary>The settle delay, in milliseconds.</summary>
+    public static string SettleDelayMs(int milliseconds) => Pick(
+        $"{milliseconds} ms",
+        $"{milliseconds} ms");
+
+    /// <summary>The alert cooldown when Lumen is never quiet.</summary>
+    public static string AlertCooldownAlways => Pick("Every time", "À chaque fois");
+
+    /// <summary>The alert cooldown, in whole minutes.</summary>
+    public static string AlertCooldownMinutes(int minutes) => Pick(
+        $"Every {minutes} minute(s)",
+        $"Toutes les {minutes} minute(s)");
+
     /// <summary>Formats a count with the noun that fits the current language.</summary>
-    public static string Count(long value, TextNoun noun)
-    {
+    public static string Count(long value, TextNoun noun)    {
         if (IsFrench)
         {
             return value == 1

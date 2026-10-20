@@ -13,8 +13,8 @@ namespace Lumen.Core.Detection;
 /// <remarks>
 /// The detector only works with the bytes the scanner already read, so it can see the
 /// beginning of a container and not its whole content. It reports what it saw and does not
-/// claim that an archive is malicious because it carries an executable: that is a normal
-/// thing for installers and software updates to do.
+/// claim that an archive is harmful because it carries a program: that is a normal thing
+/// for installers and software updates to do.
 /// </remarks>
 public sealed class ArchiveDetector : IScanDetector
 {
@@ -37,10 +37,17 @@ public sealed class ArchiveDetector : IScanDetector
         ".mp3", ".mp4", ".avi", ".mkv", ".wav", ".xml", ".json", ".html", ".htm", ".md"
     ];
 
+    /// <summary>
+    /// The names of the files that Windows can start on its own when a user opens them.
+    /// Script files that need another program to run, such as a JavaScript file, are not in
+    /// this list: a web project zipped up for a colleague is not an archive carrying a
+    /// program. A file that carries the executable marker is still reported whatever it is
+    /// called.
+    /// </summary>
     private static readonly string[] ExecutableExtensions =
     [
         ".exe", ".dll", ".scr", ".com", ".cpl", ".pif", ".sys", ".msi", ".msp",
-        ".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".hta", ".lnk", ".jar"
+        ".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".hta", ".lnk"
     ];
 
     private static readonly string[] ArchiveExtensions =
@@ -49,7 +56,7 @@ public sealed class ArchiveDetector : IScanDetector
     ];
 
     private const string Advice =
-        "Open the archive in an archive tool and look at what is inside before you run anything. An archive carrying an executable is not unusual on its own.";
+        "Open the archive in an archive tool and look at what is inside before you run anything. An archive carrying a program is not unusual on its own.";
 
     /// <inheritdoc />
     public string Id => "archive.analysis";
@@ -140,14 +147,14 @@ public sealed class ArchiveDetector : IScanDetector
         findings.Add(new Finding
         {
             RuleId = "archive.executable-inside",
-            Title = "Archive contains an executable",
+            Title = "Archive contains a program Windows can start",
             Category = FindingCategory.Heuristic,
             Confidence = Confidence.High,
-            Summary = "The archive holds at least one file that can run code.",
+            Summary = "The archive holds at least one file that Windows can start.",
             Detail =
-                $"The archive contains {executableNames.Count} file(s) that look executable: {string.Join(", ", names)}" +
+                $"The archive contains {executableNames.Count} file(s) that Windows can start: {string.Join(", ", names)}" +
                 (executableNames.Count > names.Length ? ", and more" : string.Empty) + ". " +
-                "Installers and software updates routinely ship executables, so this is worth checking rather than proof of anything.",
+                "Installers and software updates routinely ship programs, so this is worth checking rather than proof of anything.",
             Advice = Advice
         });
     }

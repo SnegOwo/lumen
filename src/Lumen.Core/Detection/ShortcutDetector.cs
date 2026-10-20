@@ -63,11 +63,7 @@ public sealed class ShortcutDetector : IScanDetector
         ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".bat", ".cmd", ".scr"
     ];
 
-    private static readonly string[] TemporaryPathMarkers =
-    [
-        "\\appdata\\", "\\local\\", "\\roaming\\", "\\temp\\", "\\tmp\\", "\\downloads\\",
-        "\\public\\", "\\windows\\temp\\", "\\recycler\\", "\\$recycle.bin\\"
-    ];
+    private static readonly string[] TemporaryFolderNames = ["temp", "tmp"];
 
     private readonly IShortcutTargetResolver _resolver;
 
@@ -143,13 +139,14 @@ public sealed class ShortcutDetector : IScanDetector
             findings.Add(new Finding
             {
                 RuleId = "shortcut.temp-path-target",
-                Title = "Shortcut points into a temporary or shared folder",
+                Title = "Shortcut points into a temporary folder or another machine",
                 Category = FindingCategory.Heuristic,
                 Confidence = Confidence.Medium,
-                Summary = "The shortcut launches a file from a folder that is meant to hold temporary downloads.",
+                Summary = "The shortcut launches a file from a temporary folder, or from a machine other than this one.",
                 Detail =
                     $"The shortcut points at \"{safeTarget}\". " +
-                    "Files in temporary and shared folders are easy to replace and are a usual place for a payload to sit.",
+                    "Files in temporary folders are easy to replace and are a usual place for a payload to sit, " +
+                    "and a target on another machine can be changed by whoever controls that share.",
                 Advice = "Check the target file itself before you run the shortcut."
             });
         }
@@ -211,14 +208,29 @@ public sealed class ShortcutDetector : IScanDetector
         return ScriptExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// True when the shortcut launches something from a temporary folder or from a machine
+    /// other than this one.
+    /// </summary>
+    /// <remarks>
+    /// The test looks at the folders in the path, not at fragments of it. An earlier version
+    /// matched pieces of the text, which flagged every shortcut to an application installed
+    /// under the user profile, because that path contains a folder called "Local". A
+    /// shortcut to a program the user installed themselves is not worth a warning.
+    /// </remarks>
     private static bool LooksTemporary(string target)
     {
         var lower = target.ToLowerInvariant();
         if (lower.StartsWith("\\\\", StringComparison.Ordinal)) return true;
 
-        foreach (var marker in TemporaryPathMarkers)
+        // A web address is not a folder on this machine.
+        if (lower.StartsWith("http://", StringComparison.Ordinal) ||
+            lower.StartsWith("https://", StringComparison.Ordinal)) return false;
+
+        foreach (var segment in target.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries))
         {
-            if (lower.Contains(marker, StringComparison.Ordinal)) return true;
+            var name = segment.Trim().Trim('%').Trim();
+            if (TemporaryFolderNames.Contains(name, StringComparer.OrdinalIgnoreCase)) return true;
         }
 
         return false;

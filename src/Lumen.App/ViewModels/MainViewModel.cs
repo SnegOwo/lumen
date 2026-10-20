@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
+using Lumen.App.Alerts;
 using Lumen.App.Dialogs;
 using Lumen.App.Infrastructure;
 using Lumen.App.Localization;
@@ -22,6 +24,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private bool _isBusy;
     private string _themeTooltip = "Switch theme";
     private bool _canToggleTheme = true;
+    private int _quietDetections;
     private bool _disposed;
 
     public MainViewModel(AppServices services)
@@ -56,6 +59,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _services.SettingsChanged += OnSettingsChanged;
         _services.RealtimeDetected += OnRealtimeDetected;
         _services.Alerts.QuarantineRequested += OnQuarantineRequested;
+        _services.Alerts.AlertSuppressed += OnAlertSuppressed;
         Text.LanguageChanged += OnLanguageChanged;
 
         UpdateHeader();
@@ -261,6 +265,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Raises the loud detection alert for a real-time match. A clean scan never
     /// raises it: only a real detection does.
+    ///
+    /// <para>
+    /// The alert service decides whether the finding is strong enough to take over
+    /// the screen. A weak one is still reported — the real-time monitor has already
+    /// put a message in the notification area, and the match is in the log — but it
+    /// does not open a window over the user's work.
+    /// </para>
     /// </summary>
     private void OnRealtimeDetected(object? sender, RealtimeDetectionEvent detection)
     {
@@ -279,7 +290,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             report,
             detection.FileName,
             primary?.Title ?? Text.PotentialIssueTitle,
-            Presentation.ConfidenceText(primary?.Confidence ?? Confidence.Low));
+            Presentation.ConfidenceText(primary?.Confidence ?? Confidence.Low),
+            AlertOrigin.Realtime);
+    }
+
+    /// <summary>
+    /// A detection was recorded but no loud alert was shown. The status line says
+    /// so, so the user knows that Lumen saw something without being interrupted.
+    /// </summary>
+    private void OnAlertSuppressed(object? sender, AlertSuppression suppression)
+    {
+        _quietDetections++;
+        UpdateHeader();
     }
 
     /// <summary>
@@ -355,9 +377,23 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
 
         HeaderStatusText = Text.StatusReady;
-        HeaderStatusDetail = _services.Realtime.IsRunning
+
+        var detail = _services.Realtime.IsRunning
             ? Text.StatusRealtimeActive
             : Text.StatusOnDemand;
+
+        // A detection that was recorded without a loud alert is still a detection.
+        // The status line says how many there were, so nothing is silently dropped.
+        if (_quietDetections > 0)
+        {
+            var strings = AlertService.BuildStrings(_services.Language);
+            var quiet = _quietDetections == 1
+                ? strings.QuietDetailOne
+                : string.Format(CultureInfo.CurrentCulture, strings.QuietDetailMany, _quietDetections);
+            detail = detail + " · " + quiet;
+        }
+
+        HeaderStatusDetail = detail;
         IsBusy = false;
     }
 
@@ -417,6 +453,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _services.SettingsChanged -= OnSettingsChanged;
         _services.RealtimeDetected -= OnRealtimeDetected;
         _services.Alerts.QuarantineRequested -= OnQuarantineRequested;
+        _services.Alerts.AlertSuppressed -= OnAlertSuppressed;
         Text.LanguageChanged -= OnLanguageChanged;
 
         Dashboard.Dispose();

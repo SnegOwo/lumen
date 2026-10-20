@@ -12,13 +12,15 @@ namespace Lumen.Core.Detection;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Nothing here proves that a file is malware. An unsigned executable, a high entropy
-/// section and a process injection import are all things that legitimate software does too.
-/// The findings say exactly what was observed so a person can decide.
+/// Nothing here proves that a file is harmful. A high entropy section and a process
+/// injection import are things that legitimate software does too. The findings say exactly
+/// what was observed so a person can decide.
 /// </para>
 /// <para>
-/// The detector performs no file system access. The only outside input is the current time,
-/// which is injected so the timestamp check can be tested.
+/// The detector performs no file system access. The only outside inputs are the current
+/// time, which is injected so the timestamp check can be tested, and the answer to "where
+/// does this file live", which decides whether a missing signature is worth mentioning at
+/// all.
 /// </para>
 /// </remarks>
 public sealed class PortableExecutableDetector : IScanDetector
@@ -37,14 +39,16 @@ public sealed class PortableExecutableDetector : IScanDetector
     };
 
     private const string Advice =
-        "Look at the file in a tool you trust before you run it. None of these signals on its own proves that a file is malware.";
+        "Look at the file in a tool you trust before you run it. None of these signals on its own proves that a file is harmful.";
 
     private readonly IClock _clock;
+    private readonly ISuspiciousLocation _locations;
 
     /// <summary>
-    /// Creates the detector using the system clock for the timestamp check.
+    /// Creates the detector using the system clock for the timestamp check and the folders
+    /// of this machine to decide where a file lives.
     /// </summary>
-    public PortableExecutableDetector() : this(SystemClock.Instance)
+    public PortableExecutableDetector() : this(SystemClock.Instance, new DefaultSuspiciousLocation())
     {
     }
 
@@ -52,9 +56,20 @@ public sealed class PortableExecutableDetector : IScanDetector
     /// Creates the detector with an explicit clock so the timestamp rule can be tested
     /// without depending on the current date.
     /// </summary>
-    public PortableExecutableDetector(IClock clock)
+    public PortableExecutableDetector(IClock clock) : this(clock, new DefaultSuspiciousLocation())
+    {
+    }
+
+    /// <summary>
+    /// Creates the detector with an explicit clock and an explicit answer to the question
+    /// of where a file lives, so both rules can be tested without depending on the machine.
+    /// </summary>
+    /// <param name="clock">The clock used for the compilation timestamp check.</param>
+    /// <param name="locations">Decides whether a path is in a folder the user can write to.</param>
+    public PortableExecutableDetector(IClock clock, ISuspiciousLocation locations)
     {
         _clock = clock;
+        _locations = locations;
     }
 
     /// <inheritdoc />
@@ -65,7 +80,7 @@ public sealed class PortableExecutableDetector : IScanDetector
 
     /// <inheritdoc />
     public string Description =>
-        "Reads the Windows executable header, section table and import table from the bytes already read, and reports packing, notable API imports, signature problems and implausible timestamps.";
+        "Reads the Windows executable header, section table and import table from the bytes already read, and reports packing, notable API imports, a missing signature in a folder the user can write to, and implausible timestamps.";
 
     /// <inheritdoc />
     public FindingCategory Category => FindingCategory.Behavior;
@@ -96,7 +111,7 @@ public sealed class PortableExecutableDetector : IScanDetector
         AddPackerSectionFindings(header, findings);
         AddHighEntropyFindings(header, findings);
         AddImportFindings(header, findings);
-        AddSignatureFindings(header, findings);
+        AddSignatureFindings(header, probe, findings);
         AddTimestampFindings(header, findings);
 
         return findings;
@@ -173,8 +188,13 @@ public sealed class PortableExecutableDetector : IScanDetector
         });
     }
 
-    private static void AddSignatureFindings(PeHeader header, List<Finding> findings)
+    private void AddSignatureFindings(PeHeader header, FileProbe probe, List<Finding> findings)
     {
+        // When only the beginning of the file was read, the certificate table may be past
+        // the end of what was read. Nothing can be said about the signature then, so
+        // nothing is said.
+        if (!header.SignatureCheckComplete) return;
+
         if (header.HasCertificateTable && !header.HasValidDigitalSignature)
         {
             findings.Add(new Finding
@@ -195,19 +215,29 @@ public sealed class PortableExecutableDetector : IScanDetector
 
         if (header.HasValidDigitalSignature) return;
 
-        if (!header.SignatureCheckComplete) return;
+        // Being unsigned is not a finding on its own: plenty of ordinary tools ship without
+        // a signature. It only becomes worth mentioning when the file also sits somewhere
+        // the user can freely write to, where any program running as that user can replace
+        // it without asking.
+        if (!_locations.IsSuspicious(probe.Path)) return;
 
         findings.Add(new Finding
         {
             RuleId = "pe.unsigned-executable",
-            Title = "Executable carries no digital signature",
+            Title = "Unsigned executable in a folder the user can write to",
             Category = FindingCategory.Heuristic,
             Confidence = Confidence.Low,
-            Summary = "The executable does not carry a digital signature.",
+            Summary = "The executable is not signed and sits in a folder the user can freely write to.",
             Detail =
-                "No certificate table was found in the file. Most software published by established vendors is signed, " +
-                "but plenty of small and open-source tools are not, so this is a weak signal on its own.",
-            Advice = "Check who published the file and where it came from before you run it."
+                "The file has no certificate table, so nothing in it says who published it, and it sits in a folder " +
+                "that any program running as this user can replace. " +
+                "A missing signature on its own is normal: many small and open-source tools are not signed, and an " +
+                "unsigned program in Program Files is not worth a second look. " +
+                "The combination of the two is what is worth a look here.",
+            Advice =
+                "Find out where the file came from before you run it. " +
+                "Right-click the file and open the digital signature tab in the properties: an unsigned file has nothing there. " +
+                "Compare the file with a copy from the publisher if you can."
         });
     }
 

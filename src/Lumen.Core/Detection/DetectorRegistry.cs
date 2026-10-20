@@ -40,14 +40,19 @@ public sealed class DetectorRegistry
     /// Creates the registry with a caller supplied signature engine. A caller that wants to
     /// use a rule file from disk builds the engine first and passes it in.
     /// </summary>
-    public static DetectorRegistry CreateDefault(SignatureEngine? signatureEngine) =>
+    /// <param name="signatureEngine">The signature engine to use, or null for the embedded one.</param>
+    /// <param name="locations">
+    /// Decides which folders count as places a user can freely write to and run from. The
+    /// folders of the current machine are used when this is left out.
+    /// </param>
+    public static DetectorRegistry CreateDefault(SignatureEngine? signatureEngine, ISuspiciousLocation? locations = null) =>
         new(
         [
             new EicarTestDetector(),
             new ScriptPatternDetector(),
             new FilenameHeuristicDetector(),
             signatureEngine ?? SignatureEngine.CreateEmbedded(),
-            new PortableExecutableDetector(),
+            new PortableExecutableDetector(SystemClock.Instance, locations ?? new DefaultSuspiciousLocation()),
             new ScriptThreatDetector(),
             new OfficeMacroDetector(),
             new PdfDetector(),

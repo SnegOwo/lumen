@@ -54,15 +54,29 @@ public sealed class AppServices : IDisposable
         // The remediation engine is pure orchestration over these four seams. Every
         // operating-system call happens inside one of the adapters, so the engine itself
         // can be tested without touching a real process, registry or file.
+        //
+        // The audit journal is shared on purpose: it holds the file open, so a second
+        // instance over the same path would fail to write.
         var fileOperations = new WindowsFileOperations();
+        var journal = FileAuditJournal.CreateUnder(Paths, Clock, Log);
         Remediation = new RemediationEngine(
             new WindowsProcessTerminator(),
             new WindowsPersistenceEnumerator(Log),
             fileOperations,
             fileOperations,
-            FileAuditJournal.CreateUnder(Paths, Clock, Log),
+            journal,
             Clock,
             Log,
+            remediationEnabled: Settings.RemediationEnabled);
+
+        // The real-time kill path. It is off unless BOTH switches are on, and it never
+        // stops a protected or system process.
+        RealtimeKill = new RealtimeKillService(
+            new WindowsProcessTerminator(),
+            journal,
+            Clock,
+            Log,
+            autoKillEnabled: Settings.RealtimeAutoKill,
             remediationEnabled: Settings.RemediationEnabled);
 
         Realtime = new RealtimeMonitor(
@@ -71,13 +85,16 @@ public sealed class AppServices : IDisposable
             RealtimeExclusions(),
             InspectBytesFor(),
             Clock,
-            Log);
+            Log,
+            settleDelay: TimeSpan.FromMilliseconds(Settings.RealtimeSettleDelayMs),
+            workerCount: Settings.RealtimeWorkerCount);
         Realtime.Detection += OnRealtimeDetection;
         Defender = new DefenderStatusService(Clock);
         TestFiles = new TestFileService();
         Theme = new ThemeService();
         Dialogs = new DialogService(Theme);
         Alerts = new Alerts.AlertService(this);
+        Alerts.Cooldown = TimeSpan.FromSeconds(Settings.AlertCooldownSeconds);
 
         var warnings = new List<string>();
         if (!string.IsNullOrWhiteSpace(SettingsStore.LoadWarning)) warnings.Add(SettingsStore.LoadWarning);
@@ -107,6 +124,13 @@ public sealed class AppServices : IDisposable
     /// <see cref="AppSettings.RemediationEnabled"/> is on.
     /// </summary>
     public RemediationEngine Remediation { get; }
+
+    /// <summary>
+    /// Stops the processes that are using a file the real-time monitor flagged. It
+    /// refuses to act unless both the auto-kill switch and the remediation master
+    /// switch are on.
+    /// </summary>
+    public RealtimeKillService RealtimeKill { get; }
 
     /// <summary>On-access monitoring of the quick-scan folders while Lumen runs.</summary>
     public RealtimeMonitor Realtime { get; }
@@ -177,6 +201,9 @@ public sealed class AppServices : IDisposable
 
         ApplyRealtimeSetting(next);
         Remediation.RemediationEnabled = next.RemediationEnabled;
+        RealtimeKill.RemediationEnabled = next.RemediationEnabled;
+        RealtimeKill.AutoKillEnabled = next.RealtimeAutoKill;
+        Alerts.Cooldown = TimeSpan.FromSeconds(next.AlertCooldownSeconds);
 
         try
         {
@@ -207,7 +234,9 @@ public sealed class AppServices : IDisposable
             var configured = Realtime.Configure(
                 RealtimeWatchRoots(settings),
                 RealtimeExclusions(settings),
-                InspectBytesFor(settings));
+                InspectBytesFor(settings),
+                settleDelay: TimeSpan.FromMilliseconds(settings.RealtimeSettleDelayMs),
+                workerCount: settings.RealtimeWorkerCount);
 
             if (!configured.Ok)
                 Log.Warn("Realtime", configured.Message ?? "Real-time protection could not be reconfigured.");
@@ -298,6 +327,42 @@ public sealed class AppServices : IDisposable
                     "Nothing was changed." + reason);
             }
         });
+
+        // The real-time kill path. It decides for itself whether it is allowed to act:
+        // both switches must be on, and it never stops a protected process.
+        if (Settings.RealtimeAutoKill && Settings.RemediationEnabled)
+        {
+            _ = KillUsingProcessesAsync(detection);
+        }
+    }
+
+    /// <summary>
+    /// Stops the processes that are using a file the monitor flagged, and tells the
+    /// user what happened. The file itself is never removed here.
+    /// </summary>
+    private async Task KillUsingProcessesAsync(RealtimeDetectionEvent detection)
+    {
+        try
+        {
+            var result = await RealtimeKill.KillAsync(detection, CancellationToken.None).ConfigureAwait(false);
+            if (!result.StoppedAnything) return;
+
+            Log.Info(
+                "Realtime",
+                $"Stopped {result.StoppedCount} process(es) using the matched file. Refused {result.RefusedCount}.");
+
+            RunOnUI(() =>
+            {
+                Tray?.Notify(
+                    "Real-time protection",
+                    $"{result.StoppedCount} process(es) using {detection.FileName} were stopped.");
+                OnDataChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Realtime", "The real-time process kill failed.", ex);
+        }
     }
 
     private async Task AutoQuarantineAsync(RealtimeDetectionEvent detection)

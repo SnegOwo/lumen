@@ -44,6 +44,12 @@ watcher, not a kernel filter driver. A file can be written and executed before t
 finishes, and Lumen does not cover system folders. Real-time protection only runs while the app
 is running.
 
+Several files are inspected at the same time. The monitor keeps a small pool of workers (three by
+default), so a burst of downloads is answered in parallel instead of one file after the other. A
+file that is still being written waits for its own short settle deadline outside the workers, so
+it never holds up the files behind it; the whole-file SHA-256 is only computed once something was
+actually found.
+
 Findings are reported, never acted on silently. With auto-quarantine off (the default) Lumen only
 tells you. With it on, a match goes into the same confirmed vault service a manual quarantine
 uses — never a silent delete.

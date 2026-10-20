@@ -12,8 +12,13 @@ public sealed record RealtimeDetectionEvent
     public required long SizeBytes { get; init; }
 
     /// <summary>
-    /// The digest of the file, or null when the file could not be hashed. A null digest does
-    /// not mean "clean"; it means the file was in use or unreadable at that moment.
+    /// The digest of the WHOLE file, or null when the file could not be hashed. A null digest
+    /// does not mean "clean"; it means the file was in use or unreadable at that moment.
+    ///
+    /// This is the digest of the complete file, not of the inspected prefix, because the
+    /// quarantine service recomputes the digest of the complete file and compares the two.
+    /// It is only computed when there is something to report, since hashing a large file is
+    /// the most expensive step of the whole inspection.
     /// </summary>
     public string? Sha256 { get; init; }
 
@@ -58,11 +63,29 @@ public sealed record RealtimeMonitorStats(
     /// <summary>How many folders the monitor was asked to watch.</summary>
     public int ConfiguredFolderCount { get; init; }
 
-    /// <summary>Paths waiting to be inspected, plus paths already handed to the worker.</summary>
+    /// <summary>
+    /// How many paths the monitor is still dealing with: the paths that are waiting for their
+    /// settle deadline, the paths that are ready to be inspected and the paths a worker is
+    /// reading right now. A number above zero means the monitor is busy, and the UI can say
+    /// so instead of pretending that everything was answered already.
+    /// </summary>
     public int QueueDepth { get; init; }
 
-    /// <summary>Paths that were waiting to be inspected but had to be dropped.</summary>
+    /// <summary>
+    /// How many paths are still waiting for their settle deadline. These paths do not occupy
+    /// a worker: they wait outside the inspection stage until the file stops changing.
+    /// </summary>
     public int PendingPathCount { get; init; }
+
+    /// <summary>How many files the monitor may inspect at the same time.</summary>
+    public int WorkerCount { get; init; }
+
+    /// <summary>
+    /// How many of the monitor's background threads are alive right now: the workers plus
+    /// the scheduler that hands the ready paths to them. The value is zero while the
+    /// monitor is stopped, which shows that nothing is left running in the background.
+    /// </summary>
+    public int ActiveWorkerCount { get; init; }
 
     /// <summary>
     /// How many paths were dropped because the queue was full. A non-zero value means files

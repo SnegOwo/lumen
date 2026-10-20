@@ -57,9 +57,11 @@ public sealed class ScriptThreatDetector : IScanDetector
         new(
             "script.amsi-bypass",
             "Antimalware scan interface tampering",
-            [["amsiutils", "amsiinitfailed", "amsiscanbuffer", "amsiinitialize"]],
+            // AmsiScanBuffer is left out on purpose: the signature rules report that name
+            // for every kind of file, so keeping it here would report one observation twice.
+            [["amsiutils", "amsiinitfailed", "amsiinitialize"]],
             Confidence.Medium,
-            "The script mentions an internal name of the antimalware scanning interface. Ordinary scripts do not need to touch it.",
+            "The script mentions an internal name of the antimalware scanning interface. Ordinary scripts do not need to touch it. The name AmsiScanBuffer is reported by the signature rules instead, so one observation is only ever reported once.",
             FindingCategory.Behavior,
             ScriptExtensions),
         new(
