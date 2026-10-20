@@ -629,6 +629,8 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel, IDispo
                 Presentation.CategoryHint(category),
                 rules));
         }
+
+        OnPropertyChanged(nameof(RulesCountText));
     }
 
     private void OnServicesSettingsChanged(object? sender, EventArgs e) => RaiseSettings();

@@ -397,7 +397,10 @@ public sealed class SignatureEngine : IScanDetector
         if (content.Length == 0) return [];
 
         var extension = Path.GetExtension(probe.FileName);
-        var matches = new List<SignatureMatch>();
+
+        // The list is only created when a rule actually fires. Most files match nothing,
+        // and a scan of ten thousand files should not throw ten thousand lists away.
+        List<SignatureMatch>? matches = null;
 
         // The lower case form of the text is built once per file and only when a rule
         // actually needs it. It used to be built again for every pattern.
@@ -414,12 +417,13 @@ public sealed class SignatureEngine : IScanDetector
                 var offset = pattern.Match(content, probe, ref lowerText);
                 if (offset < 0) continue;
 
+                matches ??= new List<SignatureMatch>();
                 matches.Add(new SignatureMatch(rule.Rule, pattern.Pattern, offset));
                 break;
             }
         }
 
-        return matches;
+        return matches ?? (IReadOnlyList<SignatureMatch>)Array.Empty<SignatureMatch>();
     }
 
     /// <inheritdoc />
@@ -476,7 +480,7 @@ public sealed class SignatureEngine : IScanDetector
     private sealed class CompiledPattern
     {
         private readonly byte[]? _ascii;
-        private readonly byte[]? _asciiLower;
+        private readonly byte[]? _asciiSwapped;
         private readonly CompiledHex? _hex;
         private readonly IReadOnlyList<IReadOnlyList<string>>? _tokenGroups;
 
@@ -492,7 +496,7 @@ public sealed class SignatureEngine : IScanDetector
                     if (needle.Length > 0)
                     {
                         _ascii = needle;
-                        _asciiLower = pattern.CaseSensitive ? null : VectorByteSearch.Fold(needle);
+                        _asciiSwapped = pattern.CaseSensitive ? null : VectorByteSearch.SwapCase(needle);
                     }
 
                     break;
@@ -554,7 +558,7 @@ public sealed class SignatureEngine : IScanDetector
                     if (_ascii is null) return -1;
                     return Pattern.CaseSensitive
                         ? VectorByteSearch.IndexOf(content, _ascii)
-                        : VectorByteSearch.IndexOfIgnoreCase(content, _asciiLower!);
+                        : VectorByteSearch.IndexOfIgnoreCase(content, _ascii, _asciiSwapped!);
                 }
 
                 case SignaturePatternKind.Hex:
@@ -570,10 +574,10 @@ public sealed class SignatureEngine : IScanDetector
                     var text = probe.GetTextSample();
                     if (string.IsNullOrEmpty(text)) return -1;
 
-                    lowerText ??= text.ToLowerInvariant();
+                    var lower = lowerText ??= text.ToLowerInvariant();
                     foreach (var group in _tokenGroups)
                     {
-                        if (!group.Any(token => lowerText.Contains(token, StringComparison.Ordinal))) return -1;
+                        if (!group.Any(token => lower.Contains(token, StringComparison.Ordinal))) return -1;
                     }
 
                     return 0;
@@ -697,6 +701,11 @@ public sealed record SignatureMatch(SignatureRule Rule, SignaturePattern Pattern
 /// </summary>
 internal static class VectorByteSearch
 {
+    private static readonly Vector<byte> FullMask = Vector.Create((byte)0x80);
+    private static readonly Vector<byte> NoMask = Vector.Create((byte)0);
+    private static readonly Vector<byte> FullMatch = Vector.Create((byte)1);
+    private static readonly Vector<byte> NoMatch = Vector.Create((byte)0);
+
     /// <summary>
     /// Finds the first occurrence of a byte sequence, or -1 when it is not there.
     /// </summary>
@@ -716,10 +725,10 @@ internal static class VectorByteSearch
 
         while (index <= limit)
         {
-            var candidate = IndexOfByte(haystack, index, limit, needle[0]);
+            var candidate = IndexOfByte(haystack, index, limit, needle[0], null);
             if (candidate < 0) return -1;
 
-            if (MatchesAt(haystack, candidate, needle)) return candidate;
+            if (MatchesAt(haystack, candidate, needle, null)) return candidate;
             index = candidate + 1;
         }
 
@@ -727,23 +736,31 @@ internal static class VectorByteSearch
     }
 
     /// <summary>
-    /// Finds the first occurrence of an ASCII needle, ignoring the case of letters. The
-    /// needle must already be in lower case; <see cref="Fold"/> produces that form.
+    /// Finds the first occurrence of an ASCII needle, ignoring the case of letters.
     /// </summary>
-    public static int IndexOfIgnoreCase(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> lowerNeedle)
+    /// <param name="haystack">The bytes to search.</param>
+    /// <param name="needle">The needle, in the case the rule wrote it in.</param>
+    /// <param name="swappedNeedle">
+    /// The needle with the case of every letter flipped. A byte matches when it is equal
+    /// to one of the two, which is the same rule the byte wise search applies.
+    /// </param>
+    public static int IndexOfIgnoreCase(
+        ReadOnlySpan<byte> haystack,
+        ReadOnlySpan<byte> needle,
+        byte[] swappedNeedle)
     {
-        if (lowerNeedle.Length == 0) return 0;
-        if (lowerNeedle.Length > haystack.Length) return -1;
+        if (needle.Length == 0) return 0;
+        if (needle.Length > haystack.Length) return -1;
 
-        var limit = haystack.Length - lowerNeedle.Length;
+        var limit = haystack.Length - needle.Length;
         var index = 0;
 
         while (index <= limit)
         {
-            var candidate = IndexOfByte(haystack, index, limit, lowerNeedle[0], foldHaystack: true);
+            var candidate = IndexOfByte(haystack, index, limit, needle[0], swappedNeedle[0]);
             if (candidate < 0) return -1;
 
-            if (MatchesAt(haystack, candidate, lowerNeedle, foldHaystack: true)) return candidate;
+            if (MatchesAt(haystack, candidate, needle, swappedNeedle)) return candidate;
             index = candidate + 1;
         }
 
@@ -751,43 +768,52 @@ internal static class VectorByteSearch
     }
 
     /// <summary>
-    /// Turns the letters of a needle into lower case, which is the form the case
-    /// insensitive search works with.
+    /// Flips the case of every ASCII letter and leaves every other byte alone.
     /// </summary>
-    public static byte[] Fold(ReadOnlySpan<byte> value)
+    public static byte[] SwapCase(ReadOnlySpan<byte> value)
     {
         var result = new byte[value.Length];
-        for (var index = 0; index < value.Length; index++) result[index] = Fold(value[index]);
+        for (var index = 0; index < value.Length; index++) result[index] = SwapCase(value[index]);
         return result;
     }
 
     /// <summary>
     /// Finds the first byte at or after <paramref name="from"/> that is equal to the target.
-    /// Several bytes are compared at a time, which is what makes the search quick.
+    /// When an alternative is given, a byte with that value counts as well. Several bytes
+    /// are compared at a time, which is what makes the search quick.
     /// </summary>
     private static int IndexOfByte(
         ReadOnlySpan<byte> haystack,
         int from,
         int limit,
         byte target,
-        bool foldHaystack = false)
+        byte? alternative)
     {
         var width = Vector<byte>.Count;
+        var targetVector = Vector.Create(target);
+        var alternativeVector = Vector.Create(alternative ?? target);
         var index = from;
 
         while (index + width <= haystack.Length)
         {
             var chunk = new Vector<byte>(haystack.Slice(index, width));
-            if (foldHaystack) chunk = Fold(chunk);
 
-            var equal = Vector.Equals(chunk, Vector.Create(target));
-            var mask = Vector.ExtractMostSignificantBits(
-                Vector.ConditionalSelect(equal, Vector.Create((byte)0x80), Vector.Create((byte)0)));
+            var equal = Vector.Equals(chunk, targetVector);
+            if (alternative is not null) equal |= Vector.Equals(chunk, alternativeVector);
 
-            if (mask != 0)
+            // The lanes that matched are marked with the highest bit of their byte.
+            var mask = Vector.ConditionalSelect(equal, FullMask, NoMask);
+            if (!Vector.EqualsAll(mask, NoMask))
             {
-                var position = index + BitOperations.TrailingZeroCount(mask) / 8;
-                return position <= limit ? position : -1;
+                // The chunk holds at least one candidate, so the first marked lane is the
+                // answer. This happens once per match, not once per chunk.
+                for (var lane = 0; lane < width; lane++)
+                {
+                    if (mask.GetElement(lane) == 0) continue;
+
+                    var position = index + lane;
+                    return position <= limit ? position : -1;
+                }
             }
 
             index += width;
@@ -795,8 +821,9 @@ internal static class VectorByteSearch
 
         for (; index <= limit; index++)
         {
-            var value = foldHaystack ? Fold(haystack[index]) : haystack[index];
+            var value = haystack[index];
             if (value == target) return index;
+            if (alternative is not null && value == alternative.Value) return index;
         }
 
         return -1;
@@ -810,13 +837,14 @@ internal static class VectorByteSearch
         ReadOnlySpan<byte> haystack,
         int position,
         ReadOnlySpan<byte> needle,
-        bool foldHaystack = false)
+        byte[]? swappedNeedle)
     {
         // The last byte is checked first because it rejects most of the candidates that
         // the first byte search produces.
         var last = needle.Length - 1;
-        var lastValue = foldHaystack ? Fold(haystack[position + last]) : haystack[position + last];
-        if (lastValue != needle[last]) return false;
+        var lastValue = haystack[position + last];
+        if (lastValue != needle[last] &&
+            (swappedNeedle is null || lastValue != swappedNeedle[last])) return false;
         if (needle.Length == 1) return true;
 
         var width = Vector<byte>.Count;
@@ -825,40 +853,39 @@ internal static class VectorByteSearch
         while (offset + width <= needle.Length)
         {
             var chunk = new Vector<byte>(haystack.Slice(position + offset, width));
-            if (foldHaystack) chunk = Fold(chunk);
+            var expected = new Vector<byte>(needle.Slice(offset, width));
 
-            if (!Vector.EqualsAll(chunk, new Vector<byte>(needle.Slice(offset, width)))) return false;
+            var equal = Vector.Equals(chunk, expected);
+            if (swappedNeedle is not null)
+            {
+                var swapped = new Vector<byte>(swappedNeedle.AsSpan(offset, width));
+                equal |= Vector.Equals(chunk, swapped);
+            }
+
+            // Every lane of the comparison has to be true.
+            var lanes = Vector.ConditionalSelect(equal, FullMatch, NoMatch);
+            if (!Vector.EqualsAll(lanes, FullMatch)) return false;
             offset += width;
         }
 
         for (; offset < last; offset++)
         {
-            var value = foldHaystack ? Fold(haystack[position + offset]) : haystack[position + offset];
-            if (value != needle[offset]) return false;
+            var value = haystack[position + offset];
+            if (value == needle[offset]) continue;
+            if (swappedNeedle is not null && value == swappedNeedle[offset]) continue;
+            return false;
         }
 
         return true;
     }
 
     /// <summary>
-    /// Folds the letters of a vector to lower case. Bytes that are not letters are left
-    /// alone, exactly like the byte wise search does.
+    /// Flips the case of a single ASCII letter and leaves every other byte alone.
     /// </summary>
-    private static Vector<byte> Fold(Vector<byte> value)
+    private static byte SwapCase(byte value)
     {
-        // 'A' is subtracted from every byte. The result is at most 25 when the byte was a
-        // capital letter, and the subtraction wraps around for everything below 'A'.
-        var shifted = Vector.Subtract(value, Vector.Create((byte)'A'));
-        var isLetter = Vector.Equals(Vector.Min(shifted, Vector.Create((byte)('Z' - 'A'))), shifted);
-
-        // Only the capitals move, and they move by 32.
-        var delta = Vector.ConditionalSelect(isLetter, Vector.Create((byte)0x20), Vector.Create((byte)0));
-        return Vector.Subtract(value, delta);
+        if (value is >= (byte)'A' and <= (byte)'Z') return (byte)(value + 32);
+        if (value is >= (byte)'a' and <= (byte)'z') return (byte)(value - 32);
+        return value;
     }
-
-    /// <summary>
-    /// Folds a single byte to lower case when it is a capital letter.
-    /// </summary>
-    private static byte Fold(byte value) =>
-        value is >= (byte)'A' and <= (byte)'Z' ? (byte)(value + 32) : value;
 }

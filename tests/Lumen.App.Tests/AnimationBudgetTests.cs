@@ -25,7 +25,7 @@ public sealed class AnimationBudgetTests
 
         foreach (var file in SourceTree.XamlFiles)
         {
-            var text = File.ReadAllText(file);
+            var text = WithoutComments(File.ReadAllText(file));
             var matches = Regex.Matches(text, "IsIndeterminate\\s*=\\s*\"(?<value>[^\"]*)\"");
             foreach (Match match in matches)
             {
@@ -59,7 +59,7 @@ public sealed class AnimationBudgetTests
             var relative = SourceTree.Relative(file);
             if (relative.StartsWith("Themes/", StringComparison.OrdinalIgnoreCase)) continue;
 
-            var text = File.ReadAllText(file);
+            var text = WithoutComments(File.ReadAllText(file));
             if (text.Contains("RepeatBehavior=\"Forever\"", StringComparison.Ordinal))
             {
                 offenders.Add(relative);
@@ -71,4 +71,11 @@ public sealed class AnimationBudgetTests
             "A forever-repeating storyboard belongs in the theme, where it can be stopped " +
             "when the control is not visible:" + Environment.NewLine + string.Join(Environment.NewLine, offenders));
     }
+
+    /// <summary>
+    /// Strips XML comments before the scan, so that a comment explaining the rule does
+    /// not trip the rule.
+    /// </summary>
+    private static string WithoutComments(string text) =>
+        Regex.Replace(text, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
 }

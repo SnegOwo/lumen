@@ -48,7 +48,9 @@ public sealed class AppServices : IDisposable
             Clock,
             Log);
 
-        var detectors = DetectorRegistry.CreateDefault();
+        var detectors = DetectorRegistry.CreateDefault(
+            signatureEngine: null,
+            includeAggressive: Settings.AggressiveMode);
         ScanEngine = new ScanEngine(detectors, Clock, Log);
 
         // The remediation engine is pure orchestration over these four seams. Every
@@ -79,15 +81,22 @@ public sealed class AppServices : IDisposable
             autoKillEnabled: Settings.RealtimeAutoKill,
             remediationEnabled: Settings.RemediationEnabled);
 
+        // The monitor's whole configuration comes from one resolver, so the application
+        // and the tests always agree about what is watched and how fast it reacts.
+        // In aggressive mode the resolver adds the folders a dropper actually lands in
+        // (Downloads, Startup, temporary files) and stops waiting before it inspects.
+        var configuration = RealtimeMonitor.ResolveConfiguration(Settings, UserProfile, [Paths.Root]);
+
         Realtime = new RealtimeMonitor(
             detectors,
-            RealtimeWatchRoots(),
-            RealtimeExclusions(),
-            InspectBytesFor(),
+            configuration.WatchRoots,
+            configuration.ExcludedFolders,
+            configuration.MaxInspectBytes,
             Clock,
             Log,
-            settleDelay: TimeSpan.FromMilliseconds(Settings.RealtimeSettleDelayMs),
-            workerCount: Settings.RealtimeWorkerCount);
+            settleDelay: configuration.SettleDelay,
+            workerCount: configuration.WorkerCount,
+            aggressiveMode: configuration.AggressiveMode);
         Realtime.Detection += OnRealtimeDetection;
         Defender = new DefenderStatusService(Clock);
         TestFiles = new TestFileService();
@@ -117,7 +126,12 @@ public sealed class AppServices : IDisposable
     public SettingsStore SettingsStore { get; }
     public HistoryStore HistoryStore { get; }
     public QuarantineService Quarantine { get; }
-    public ScanEngine ScanEngine { get; }
+
+    /// <summary>
+    /// The scan engine. It is rebuilt when the aggressive setting changes, because the
+    /// extra detection rules are part of the engine.
+    /// </summary>
+    public ScanEngine ScanEngine { get; private set; }
 
     /// <summary>
     /// The remediation engine. It refuses to plan or to act unless
@@ -133,7 +147,7 @@ public sealed class AppServices : IDisposable
     public RealtimeKillService RealtimeKill { get; }
 
     /// <summary>On-access monitoring of the quick-scan folders while Lumen runs.</summary>
-    public RealtimeMonitor Realtime { get; }
+    public RealtimeMonitor Realtime { get; private set; }
     public DefenderStatusService Defender { get; }
     public TestFileService TestFiles { get; }
     public ThemeService Theme { get; }
@@ -187,6 +201,7 @@ public sealed class AppServices : IDisposable
 
     public OperationResult UpdateSettings(Func<AppSettings, AppSettings> update)
     {
+        var previous = Settings;
         var next = update(Settings).Normalize();
         var saved = SettingsStore.Save(next);
         if (!saved.Ok)
@@ -205,6 +220,11 @@ public sealed class AppServices : IDisposable
         RealtimeKill.AutoKillEnabled = next.RealtimeAutoKill;
         Alerts.Cooldown = TimeSpan.FromSeconds(next.AlertCooldownSeconds);
 
+        // The extra detection rules are part of the detector registry, and the registry
+        // is held by the scan engine and by the monitor. Turning aggressive mode on or
+        // off therefore means rebuilding both.
+        if (next.AggressiveMode != previous.AggressiveMode) RebuildDetectors();
+
         try
         {
             Theme.Apply(next.Theme);
@@ -222,6 +242,53 @@ public sealed class AppServices : IDisposable
     public void NotifyDataChanged() => OnDataChanged();
 
     /// <summary>
+    /// Rebuilds the detector registry, the scan engine and the real-time monitor.
+    ///
+    /// It is needed when the aggressive setting changes, because the extra rules are
+    /// part of the registry and the registry is held by reference. The monitor is
+    /// replaced rather than reconfigured, so the old one is stopped and disposed
+    /// first and the new one picks up the same folders.
+    /// </summary>
+    private void RebuildDetectors()
+    {
+        try
+        {
+            var detectors = DetectorRegistry.CreateDefault(
+                signatureEngine: null,
+                includeAggressive: Settings.AggressiveMode);
+            ScanEngine = new ScanEngine(detectors, Clock, Log);
+
+            var wasRunning = Realtime.IsRunning;
+            Realtime.Detection -= OnRealtimeDetection;
+            Realtime.Dispose();
+
+            var configuration = RealtimeMonitor.ResolveConfiguration(Settings, UserProfile, [Paths.Root]);
+            Realtime = new RealtimeMonitor(
+                detectors,
+                configuration.WatchRoots,
+                configuration.ExcludedFolders,
+                configuration.MaxInspectBytes,
+                Clock,
+                Log,
+                settleDelay: configuration.SettleDelay,
+                workerCount: configuration.WorkerCount,
+                aggressiveMode: configuration.AggressiveMode);
+            Realtime.Detection += OnRealtimeDetection;
+
+            if (wasRunning && Settings.RealtimeProtectionEnabled) Realtime.Start();
+
+            Log.Info(
+                "App",
+                $"Aggressive mode is now {(Settings.AggressiveMode ? "on" : "off")}. " +
+                $"The detector set and the real-time monitor were rebuilt.");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("App", "The detector set could not be rebuilt after the setting changed.", ex);
+        }
+    }
+
+    /// <summary>
     /// Starts or stops on-access monitoring to match the saved setting, and pushes the
     /// watched folders, the exclusions and the inspection limit into the running monitor.
     /// The limit used to be frozen when the monitor was created, so changing it in
@@ -231,12 +298,14 @@ public sealed class AppServices : IDisposable
     {
         try
         {
+            var configuration = RealtimeMonitor.ResolveConfiguration(settings, UserProfile, [Paths.Root]);
             var configured = Realtime.Configure(
-                RealtimeWatchRoots(settings),
-                RealtimeExclusions(settings),
-                InspectBytesFor(settings),
-                settleDelay: TimeSpan.FromMilliseconds(settings.RealtimeSettleDelayMs),
-                workerCount: settings.RealtimeWorkerCount);
+                configuration.WatchRoots,
+                configuration.ExcludedFolders,
+                configuration.MaxInspectBytes,
+                configuration.SettleDelay,
+                configuration.WorkerCount,
+                configuration.AggressiveMode);
 
             if (!configured.Ok)
                 Log.Warn("Realtime", configured.Message ?? "Real-time protection could not be reconfigured.");
@@ -303,10 +372,15 @@ public sealed class AppServices : IDisposable
 
         var notify = Tray is not null && Settings.ShowTrayNotifications;
 
+        // The policy decides what a match is worth: a loud alert, a quiet notification,
+        // or a line in the results. It is the same policy the interface uses, so the
+        // two never disagree.
+        var decision = RealtimeResponsePolicy.Decide(detection.Findings, Settings.RealtimeAutoQuarantine);
+
         // A detection is only actionable when its digest could be read. The previous code
         // silently did nothing in that case, so the file was neither quarantined nor
         // reported to the user.
-        var auto = Settings.RealtimeAutoQuarantine && detection.IsActionable;
+        var auto = decision.ShouldQuarantine && detection.IsActionable;
 
         RunOnUI(() =>
         {
@@ -316,7 +390,7 @@ public sealed class AppServices : IDisposable
             {
                 _ = AutoQuarantineAsync(detection);
             }
-            else if (notify)
+            else if (notify && decision.ShouldNotify)
             {
                 var reason = detection.IsActionable
                     ? string.Empty

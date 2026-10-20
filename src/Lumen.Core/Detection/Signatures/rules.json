@@ -108,6 +108,46 @@
           ]
         }
       ]
+    },
+    {
+      "id": "sig.shadow-copy-deletion",
+      "title": "Command that deletes volume shadow copies",
+      "category": "Behavior",
+      "confidence": "Medium",
+      "aggressive": true,
+      "description": "The file contains a command that deletes volume shadow copies or turns off recovery. Administrators use these commands when they clear disk space, so the context decides what it means.",
+      "detail": "A command that deletes volume shadow copies or switches recovery off was found in the text.",
+      "advice": "Find out who wrote the script and why it needs the recovery points removed. Without them the machine has no way back to the files it held before.",
+      "patterns": [
+        {
+          "kind": "tokenGroups",
+          "value": "vssadmin delete shadows,wmic shadowcopy delete,wbadmin delete,resize shadowstorage,recoveryenabled no,delete shadows /all,shadowcopy delete",
+          "caseSensitive": false,
+          "extensions": [
+            ".ps1", ".psm1", ".bat", ".cmd", ".vbs", ".js", ".wsf", ".hta", ".txt", ".log", ".sh"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sig.ransom-note-wording",
+      "title": "Wording used in a ransom note",
+      "category": "Behavior",
+      "confidence": "Medium",
+      "aggressive": true,
+      "description": "The text says that files have been encrypted and asks for payment. The wording on its own is not proof of anything, but this shape does not turn up in ordinary documents.",
+      "detail": "The text carries the wording of a note that announces encrypted files and asks for payment.",
+      "advice": "Do not pay anything yet. Keep a copy of the note, and have the file looked at in a safe place before you do anything else with it.",
+      "patterns": [
+        {
+          "kind": "tokenGroups",
+          "value": "your files have been encrypted,all your files are encrypted,your files are encrypted,files have been encrypted,all files have been encrypted|decrypt,decryption key,bitcoin,ransom,payment,restore your files,recover your files",
+          "caseSensitive": false,
+          "extensions": [
+            ".txt", ".html", ".htm", ".rtf", ".md", ".log", ".hta"
+          ]
+        }
+      ]
     }
   ]
 }

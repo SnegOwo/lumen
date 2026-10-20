@@ -32,20 +32,25 @@ public sealed class PowerShellCradleDetector : IScanDetector, IAggressiveDetecto
     /// <summary>The identifier of the rule this detector reports.</summary>
     public const string RuleId = "script.powershell-download-cradle";
 
+    /// <summary>
+    /// The files the rule looks at. The short forms belong to PowerShell and to the
+    /// command line, so the rule does not look at web pages or plain text, where the same
+    /// words mean something else entirely.
+    /// </summary>
     private static readonly string[] ScriptExtensions =
     [
-        ".ps1", ".psm1", ".psd1", ".bat", ".cmd", ".vbs", ".vbe", ".js", ".jse", ".wsf",
-        ".wsh", ".hta", ".txt"
+        ".ps1", ".psm1", ".psd1", ".bat", ".cmd", ".vbs", ".vbe", ".wsf", ".wsh", ".hta"
     ];
 
     /// <summary>
-    /// The ways a script fetches something.
+    /// The ways a script fetches something. The tokens are matched as whole words, so a
+    /// short form is not found inside a longer word.
     /// </summary>
     private static readonly string[] DownloadTokens =
     [
-        "invoke-webrequest", "iwr ", "irm ", "invoke-restmethod", "system.net.webclient",
+        "invoke-webrequest", "iwr", "irm", "invoke-restmethod", "system.net.webclient",
         "webclient", "downloadstring", "downloadfile", "start-bitstransfer", "certutil",
-        "bitsadmin", "curl ", "wget ", "new-object net.webclient"
+        "bitsadmin", "curl", "wget"
     ];
 
     /// <summary>
@@ -53,8 +58,8 @@ public sealed class PowerShellCradleDetector : IScanDetector, IAggressiveDetecto
     /// </summary>
     private static readonly string[] ExecutionTokens =
     [
-        "invoke-expression", "iex ", "iex(", "frombase64string", "-encodedcommand",
-        "-enc ", "powershell -c", "cmd /c", "cmd.exe /c", "wscript.shell",
+        "invoke-expression", "iex", "frombase64string", "-encodedcommand", "-enc",
+        "powershell -c", "cmd /c", "cmd.exe /c", "wscript.shell",
         "system.reflection.assembly]::load"
     ];
 
@@ -63,7 +68,7 @@ public sealed class PowerShellCradleDetector : IScanDetector, IAggressiveDetecto
     /// </summary>
     private static readonly string[] AliasTokens =
     [
-        "iwr ", "irm ", "iex ", "iex(", "iex$"
+        "iwr", "irm", "iex"
     ];
 
     /// <summary>
@@ -119,17 +124,17 @@ public sealed class PowerShellCradleDetector : IScanDetector, IAggressiveDetecto
 
         var lower = text.ToLowerInvariant();
 
-        var downloads = DownloadTokens.Where(token => TextPatterns.Contains(lower, token)).ToArray();
-        var executions = ExecutionTokens.Where(token => TextPatterns.Contains(lower, token)).ToArray();
+        var downloads = DownloadTokens.Where(token => TextPatterns.ContainsWord(lower, token)).ToArray();
+        var executions = ExecutionTokens.Where(token => TextPatterns.ContainsWord(lower, token)).ToArray();
 
         if (downloads.Length == 0 || executions.Length == 0) return Array.Empty<Finding>();
 
         var shapes = new List<string>();
 
-        var aliases = AliasTokens.Where(token => TextPatterns.Contains(lower, token)).ToArray();
+        var aliases = AliasTokens.Where(token => TextPatterns.ContainsWord(lower, token)).ToArray();
         if (aliases.Length > 0)
         {
-            shapes.Add("the short form " + string.Join(", ", aliases.Select(token => $"\"{DisplayText.Sanitize(token.Trim())}\"")) + " is used");
+            shapes.Add("the short form " + string.Join(", ", aliases.Select(token => $"\"{DisplayText.Sanitize(token)}\"")) + " is used");
         }
 
         var distance = DistanceBetween(lower, downloads, executions);
@@ -162,8 +167,8 @@ public sealed class PowerShellCradleDetector : IScanDetector, IAggressiveDetecto
                 Summary = "The script fetches something and then runs what it fetched.",
                 Detail =
                     "The script was found to hold " +
-                    string.Join(", ", downloads.Select(token => $"\"{DisplayText.Sanitize(token.Trim())}\"")) + " and " +
-                    string.Join(", ", executions.Select(token => $"\"{DisplayText.Sanitize(token.Trim())}\"")) + ". " +
+                    string.Join(", ", downloads.Select(token => $"\"{DisplayText.Sanitize(token)}\"")) + " and " +
+                    string.Join(", ", executions.Select(token => $"\"{DisplayText.Sanitize(token)}\"")) + ". " +
                     "The two are joined in the shape of a cradle: " + string.Join("; ", shapes) + ". " +
                     "The script was not run and nothing was downloaded.",
                 Advice = Advice
@@ -180,7 +185,7 @@ public sealed class PowerShellCradleDetector : IScanDetector, IAggressiveDetecto
         var downloadIndex = -1;
         foreach (var token in downloads)
         {
-            var index = TextPatterns.IndexOf(lower, token);
+            var index = TextPatterns.IndexOfWord(lower, token);
             if (index < 0) continue;
             downloadIndex = index;
             break;
@@ -189,7 +194,7 @@ public sealed class PowerShellCradleDetector : IScanDetector, IAggressiveDetecto
         var executionIndex = -1;
         foreach (var token in executions)
         {
-            var index = TextPatterns.IndexOf(lower, token);
+            var index = TextPatterns.IndexOfWord(lower, token);
             if (index < 0) continue;
             executionIndex = index;
             break;
@@ -208,7 +213,7 @@ public sealed class PowerShellCradleDetector : IScanDetector, IAggressiveDetecto
         var downloadIndex = -1;
         foreach (var token in downloads)
         {
-            var index = TextPatterns.IndexOf(lower, token);
+            var index = TextPatterns.IndexOfWord(lower, token);
             if (index < 0) continue;
             downloadIndex = index;
             break;
@@ -217,7 +222,7 @@ public sealed class PowerShellCradleDetector : IScanDetector, IAggressiveDetecto
         var executionIndex = -1;
         foreach (var token in executions)
         {
-            var index = TextPatterns.IndexOf(lower, token);
+            var index = TextPatterns.IndexOfWord(lower, token);
             if (index < 0) continue;
             executionIndex = index;
             break;
@@ -227,7 +232,8 @@ public sealed class PowerShellCradleDetector : IScanDetector, IAggressiveDetecto
 
         var start = Math.Min(downloadIndex, executionIndex);
         var end = Math.Max(downloadIndex, executionIndex);
-        return lower.IndexOf('|', start) is var pipe && pipe >= 0 && pipe < end;
+        var pipe = lower.IndexOf('|', start);
+        return pipe >= 0 && pipe < end;
     }
 
     /// <summary>

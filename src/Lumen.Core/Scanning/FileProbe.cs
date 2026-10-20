@@ -106,7 +106,7 @@ public sealed class FileProbe
                 return _textSample;
             }
 
-            var span = _content.AsSpan(0, length);
+            var span = _content.Span.Slice(0, length);
             try
             {
                 if (span.Length >= 3 && span[0] == 0xEF && span[1] == 0xBB && span[2] == 0xBF)

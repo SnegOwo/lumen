@@ -45,7 +45,7 @@ public sealed class DetectorRegistry
     public bool IncludeAggressive => _detectors.Any(detector => detector is IAggressiveDetector);
 
     /// <summary>The detectors of the AGGRESSIVE tier that this registry runs.</summary>
-    public IReadOnlyList<IScanDetector> AggressiveDetectors =>
+    public IReadOnlyList<IScanDetector> AggressiveDetectorList =>
         _detectors.Where(detector => detector is IAggressiveDetector).ToArray();
 
     /// <summary>The scorer used to combine findings into a risk score with a breakdown.</summary>
@@ -55,13 +55,9 @@ public sealed class DetectorRegistry
     /// Creates the registry Lumen uses by default. The signature rules come from the set
     /// embedded in the assembly, so no file is read while a scan is running.
     /// </summary>
-    public static DetectorRegistry CreateDefault() => CreateDefault(SignatureEngine.CreateEmbedded());
-
-    /// <summary>
-    /// Creates the registry with a caller supplied signature engine. A caller that wants to
-    /// use a rule file from disk builds the engine first and passes it in.
-    /// </summary>
-    /// <param name="signatureEngine">The signature engine to use, or null for the embedded one.</param>
+    /// <param name="signatureEngine">
+    /// The signature engine to use, or null for the embedded one.
+    /// </param>
     /// <param name="locations">
     /// Decides which folders count as places a user can freely write to and run from. The
     /// folders of the current machine are used when this is left out.
@@ -72,7 +68,7 @@ public sealed class DetectorRegistry
     /// caller has to rebuild the registry when the setting changes.
     /// </param>
     public static DetectorRegistry CreateDefault(
-        SignatureEngine? signatureEngine,
+        SignatureEngine? signatureEngine = null,
         ISuspiciousLocation? locations = null,
         bool includeAggressive = false)
     {

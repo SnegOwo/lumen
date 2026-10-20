@@ -34,22 +34,25 @@ public sealed class AntiAnalysisDetector : IScanDetector, IAggressiveDetector
     public const string RuleId = "pe.anti-analysis-checks";
 
     /// <summary>
-    /// The names a program uses to notice that a debugger is attached.
+    /// The names a program uses to notice that a debugger is attached. They are only
+    /// counted when the program imports them, because the same words turn up in the text
+    /// of ordinary software.
     /// </summary>
     public static IReadOnlyCollection<string> DebuggerMarkers { get; } = new[]
     {
         "IsDebuggerPresent", "CheckRemoteDebuggerPresent", "NtQueryInformationProcess",
-        "NtSetInformationThread", "OutputDebugString", "SetInformationThread",
-        "DebugActiveProcess"
+        "NtSetInformationThread", "DebugActiveProcess"
     };
 
     /// <summary>
-    /// The names of the virtual machines a program may look for.
+    /// The names of the virtual machine tools a program may look for. The list names the
+    /// tools rather than the product, because the product name turns up in all sorts of
+    /// harmless strings.
     /// </summary>
     public static IReadOnlyCollection<string> VirtualMachineMarkers { get; } = new[]
     {
-        "VMware", "vmtoolsd", "vmwaretray", "vboxservice", "vboxtray", "virtualbox",
-        "VBoxGuest", "qemu-ga", "xen"
+        "vmtoolsd", "vmwaretray", "vboxservice", "vboxtray", "vboxguest", "qemu-ga",
+        "vmusrvc", "vboxmouse"
     };
 
     /// <summary>
@@ -65,7 +68,7 @@ public sealed class AntiAnalysisDetector : IScanDetector, IAggressiveDetector
     /// sleep is treated as a way of slowing an analysis down. A second is not much of a
     /// delay; ten seconds is.
     /// </summary>
-    public const long MinimumDelayMilliseconds = 10_000;
+    public const uint MinimumDelayMilliseconds = 10_000;
 
     /// <summary>
     /// How many bytes around the entry point are read looking for the delay.
@@ -111,7 +114,7 @@ public sealed class AntiAnalysisDetector : IScanDetector, IAggressiveDetector
         foreach (var marker in DebuggerMarkers)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!IsPresent(content, header, marker)) continue;
+            if (!IsImported(header, marker)) continue;
             analysis.Add(marker);
         }
 
@@ -156,15 +159,26 @@ public sealed class AntiAnalysisDetector : IScanDetector, IAggressiveDetector
     }
 
     /// <summary>
-    /// Returns true when the marker appears in the import table or in the raw bytes of the
-    /// file. A program can call a function by name without importing it, so both are checked.
+    /// Returns true when the program imports the named function.
     /// </summary>
-    private static bool IsPresent(ReadOnlySpan<byte> content, PeHeader header, string marker)
+    private static bool IsImported(PeHeader header, string name)
     {
         foreach (var import in header.Imports)
         {
-            if (string.Equals(import.Function, marker, StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(import.Function, name, StringComparison.OrdinalIgnoreCase)) return true;
         }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns true when the marker appears in the import table or in the raw bytes of the
+    /// file. A program can call a function by name without importing it, so both are
+    /// checked.
+    /// </summary>
+    private static bool IsPresent(ReadOnlySpan<byte> content, PeHeader header, string marker)
+    {
+        if (IsImported(header, marker)) return true;
 
         return ByteSearch.ContainsAscii(content, marker, caseSensitive: false);
     }
@@ -188,7 +202,7 @@ public sealed class AntiAnalysisDetector : IScanDetector, IAggressiveDetector
         for (var index = offset; index + 4 <= end; index++)
         {
             var value = BinaryPrimitives.ReadUInt32LittleEndian(content.Slice(index, 4));
-            if (value is < MinimumDelayMilliseconds or > 0x7FFF_FFFF) continue;
+            if (value < MinimumDelayMilliseconds || value > 0x7FFF_FFFFu) continue;
 
             delay = value;
             return true;

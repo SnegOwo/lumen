@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Lumen.App.Infrastructure;
 using Lumen.App.Localization;
 using Lumen.App.Services;
+using Lumen.Core.Detection;
 using Lumen.Core.Models;
 using Lumen.Core.Util;
 
@@ -312,4 +313,10 @@ public sealed class DetectionRuleViewModel
     public string ConfidenceLabel => Presentation.ConfidenceText(Source.Confidence);
     public Confidence Confidence => Source.Confidence;
     public bool IsTestSignature => Source.Category == FindingCategory.TestSignature;
+
+    /// <summary>
+    /// True when the rule only runs in aggressive mode. The rule is still documented and
+    /// still tested; the tier only decides WHEN it runs.
+    /// </summary>
+    public bool IsAggressive => DetectionCatalog.IsAggressive(Source.Id);
 }

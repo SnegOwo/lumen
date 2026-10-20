@@ -115,4 +115,42 @@ internal static class TextPatterns
     /// True when the text holds the token.
     /// </summary>
     public static bool Contains(string lowerText, string token) => IndexOf(lowerText, token) >= 0;
+
+    /// <summary>
+    /// True when the text holds the word on its own. The characters next to the word must
+    /// not be letters, digits or an underscore, so "iex" does not match inside another
+    /// word.
+    /// </summary>
+    public static bool ContainsWord(string lowerText, string word) => IndexOfWord(lowerText, word) >= 0;
+
+    /// <summary>
+    /// Returns the index of the first place the word appears on its own, or -1 when it does
+    /// not appear that way.
+    /// </summary>
+    public static int IndexOfWord(string lowerText, string word)
+    {
+        if (string.IsNullOrEmpty(lowerText) || string.IsNullOrEmpty(word)) return -1;
+
+        var index = 0;
+        while (index < lowerText.Length)
+        {
+            var found = lowerText.IndexOf(word, index, StringComparison.Ordinal);
+            if (found < 0) return -1;
+
+            var before = found > 0 ? lowerText[found - 1] : ' ';
+            var after = found + word.Length < lowerText.Length ? lowerText[found + word.Length] : ' ';
+
+            if (!IsWordCharacter(before) && !IsWordCharacter(after)) return found;
+
+            index = found + 1;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// True when the character can be part of a word.
+    /// </summary>
+    private static bool IsWordCharacter(char value) =>
+        char.IsLetterOrDigit(value) || value == '_';
 }

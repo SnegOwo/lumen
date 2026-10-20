@@ -190,6 +190,7 @@ public sealed record AppSettings
             && RealtimeSettleDelayMs == other.RealtimeSettleDelayMs
             && RealtimeWorkerCount == other.RealtimeWorkerCount
             && AlertCooldownSeconds == other.AlertCooldownSeconds
+            && AggressiveMode == other.AggressiveMode
             && RealtimeWatchFolders.SequenceEqual(other.RealtimeWatchFolders, StringComparer.OrdinalIgnoreCase)
             && RealtimeExcludedFolders.SequenceEqual(other.RealtimeExcludedFolders, StringComparer.OrdinalIgnoreCase);
     }
@@ -214,6 +215,7 @@ public sealed record AppSettings
         hash.Add(RealtimeSettleDelayMs);
         hash.Add(RealtimeWorkerCount);
         hash.Add(AlertCooldownSeconds);
+        hash.Add(AggressiveMode);
         foreach (var folder in RealtimeWatchFolders) hash.Add(folder, StringComparer.OrdinalIgnoreCase);
         foreach (var folder in RealtimeExcludedFolders) hash.Add(folder, StringComparer.OrdinalIgnoreCase);
         return hash.ToHashCode();

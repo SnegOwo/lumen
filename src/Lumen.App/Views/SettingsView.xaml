@@ -675,6 +675,14 @@
                                                                                    Style="{StaticResource ChipText}"
                                                                                    FontSize="11" />
                                                                     </Border>
+                                                                    <Border Style="{StaticResource ChipBorder}"
+                                                                             Margin="6,0,0,0"
+                                                                             Padding="6,1"
+                                                                             Visibility="{Binding IsAggressive, Converter={StaticResource BooleanToVisibility}}">
+                                                                        <TextBlock Text="{DynamicResource Strings.Settings.AggressiveRule}"
+                                                                                   Style="{StaticResource ChipText}"
+                                                                                   FontSize="11" />
+                                                                    </Border>
                                                                 </StackPanel>
                                                                 <TextBlock Text="{Binding Description}"
                                                                            Style="{StaticResource Caption}"

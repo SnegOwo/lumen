@@ -248,6 +248,7 @@
     <sys:String x:Key="Strings.Settings.AggressiveLabel">Activer le mode agressif</sys:String>
     <sys:String x:Key="Strings.Settings.AggressiveWarning">Le mode agressif détecte davantage et signale davantage. Chaque règle supplémentaire est documentée, mais elles font plus de bruit que les règles standard, et surveiller plus de dossiers coûte du CPU. Activez-le quand vous testez un téléchargement suspect, puis désactivez-le.</sys:String>
     <sys:String x:Key="Strings.Settings.AggressiveName">Mode agressif</sys:String>
+    <sys:String x:Key="Strings.Settings.AggressiveRule">agressif</sys:String>
     <sys:String x:Key="Strings.Settings.LanguageTitle">Langue</sys:String>
     <sys:String x:Key="Strings.Settings.LanguageBody">Choisissez la langue de l'interface. Le changement s'applique immédiatement, sans redémarrage.</sys:String>
     <sys:String x:Key="Strings.Settings.LanguageEnglish">English</sys:String>

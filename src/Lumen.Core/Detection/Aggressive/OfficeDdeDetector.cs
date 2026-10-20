@@ -168,8 +168,9 @@ public sealed class OfficeDdeDetector : IScanDetector, IAggressiveDetector
     /// </summary>
     private static void AddLegacyFindings(ReadOnlySpan<byte> content, List<Finding> findings)
     {
-        if (!ByteSearch.ContainsText(content, "DDEAUTO") && !ByteSearch.ContainsText(content, "DDE "))
-            return;
+        // Only the form that names the command it runs is looked for. A shorter form would
+        // also turn up in ordinary sentences inside a document.
+        if (!ByteSearch.ContainsText(content, "DDEAUTO")) return;
 
         findings.Add(new Finding
         {

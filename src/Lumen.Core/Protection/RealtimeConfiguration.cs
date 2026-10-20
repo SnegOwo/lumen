@@ -1,5 +1,4 @@
 using Lumen.Core.Models;
-using Lumen.Core.Scanning;
 using Lumen.Core.Util;
 
 namespace Lumen.Core.Protection;
@@ -102,7 +101,7 @@ public static class RealtimeConfigurationResolver
 
         var roots = current.AggressiveMode
             ? AggressiveWatchList.Build(userProfile, current.RealtimeWatchFolders, exclusions)
-            : ScanPlanner.RealtimeWatchFolders(userProfile, current.RealtimeWatchFolders, exclusions);
+            : RealtimeMonitor.BuildWatchRoots(userProfile, current.RealtimeWatchFolders, exclusions);
 
         var settleDelay = current.AggressiveMode
             ? AggressiveSettleDelay

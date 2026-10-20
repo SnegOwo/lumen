@@ -97,9 +97,13 @@ public sealed class RansomwareIndicatorDetector : IScanDetector, IAggressiveDete
 
         var lower = text.ToLowerInvariant();
 
-        var enumeration = EnumerationTokens.Where(token => TextPatterns.Contains(lower, token)).ToArray();
+        var enumeration = EnumerationTokens.Where(token => TextPatterns.ContainsWord(lower, token)).ToArray();
+
+        // The extensions are matched as plain text, because the extension of a file is
+        // often followed by more of the name, as in "*.docx".
         var extensions = ExtensionTokens.Where(token => TextPatterns.Contains(lower, token)).ToArray();
-        var renames = RenameTokens.Where(token => TextPatterns.Contains(lower, token)).ToArray();
+
+        var renames = RenameTokens.Where(token => TextPatterns.ContainsWord(lower, token)).ToArray();
 
         if (enumeration.Length == 0 || extensions.Length == 0 || renames.Length == 0) return Array.Empty<Finding>();
 
