@@ -1,0 +1,514 @@
+<UserControl x:Class="Lumen.App.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Lumen.App.Controls"
+             xmlns:vm="clr-namespace:Lumen.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel}"
+             d:DesignWidth="1050"
+             d:DesignHeight="1000">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  Padding="0,0,8,0">
+        <StackPanel MaxWidth="1080" HorizontalAlignment="Stretch">
+
+            <!-- Heading -->
+            <Grid Margin="0,0,0,18">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Settings" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="Tune the scanner and decide how Lumen behaves. Everything is stored locally in this Windows account."
+                               Style="{StaticResource PageSubtitle}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <Border Style="{StaticResource ChipBorder}" HorizontalAlignment="Right">
+                        <TextBlock Text="SAVED AUTOMATICALLY" Style="{StaticResource ChipText}" FontSize="10" />
+                    </Border>
+                    <TextBlock Text="{Binding VersionText}" Style="{StaticResource Caption}"
+                               HorizontalAlignment="Right" Margin="0,5,0,0" />
+                </StackPanel>
+            </Grid>
+
+            <controls:Banner Title="A setting could not be saved"
+                             Message="{Binding SaveErrorText}"
+                             Severity="Warning"
+                             ShowClose="True"
+                             CloseCommand="{Binding DismissSaveErrorCommand}"
+                             Margin="0,0,0,14"
+                             Visibility="{Binding HasSaveError, Converter={StaticResource BoolToVisibility}}" />
+
+            <!-- Appearance -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Appearance" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="Choose a theme. High contrast mode from Windows always takes priority."
+                               Style="{StaticResource BodySecondary}"
+                               Margin="0,4,0,0" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <RadioButton GroupName="SettingsTheme"
+                                     Style="{StaticResource PillRadio}"
+                                     IsChecked="{Binding Theme, Converter={StaticResource EnumEquals}, ConverterParameter=System, Mode=TwoWay}"
+                                     AutomationProperties.Name="Use the Windows theme">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE770;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                           FontSize="13" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                <TextBlock Text="System" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton GroupName="SettingsTheme"
+                                     Style="{StaticResource PillRadio}"
+                                     IsChecked="{Binding Theme, Converter={StaticResource EnumEquals}, ConverterParameter=Light, Mode=TwoWay}"
+                                     Margin="6,0,0,0"
+                                     AutomationProperties.Name="Use the light theme">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE706;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                           FontSize="13" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Light" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton GroupName="SettingsTheme"
+                                     Style="{StaticResource PillRadio}"
+                                     IsChecked="{Binding Theme, Converter={StaticResource EnumEquals}, ConverterParameter=Dark, Mode=TwoWay}"
+                                     Margin="6,0,0,0"
+                                     AutomationProperties.Name="Use the dark theme">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE708;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                           FontSize="13" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Dark" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </RadioButton>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Scanner -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Scanning" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="Controls how much of each file Lumen reads for its content rules."
+                               Style="{StaticResource BodySecondary}"
+                               Margin="0,4,0,0" />
+
+                    <Grid Margin="0,18,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Maximum content prefix per file"
+                                   Style="{StaticResource Label}" />
+                        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource ChipBorder}" Margin="12,0,0,0">
+                            <TextBlock Text="{Binding MaxInspectText}" Style="{StaticResource ChipText}" />
+                        </Border>
+
+                        <Slider Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                Minimum="1"
+                                Maximum="16"
+                                TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                Value="{Binding MaxInspectMegabytes, Mode=TwoWay}"
+                                Foreground="{DynamicResource Accent.Primary}"
+                                Margin="0,10,0,0"
+                                AutomationProperties.Name="Maximum megabytes inspected per file"
+                                ToolTip="1 to 16 MB" />
+                    </Grid>
+
+                    <TextBlock Text="{Binding InspectLimitDetail}"
+                               Style="{StaticResource Caption}"
+                               Margin="0,7,0,0" />
+
+                    <Border Style="{StaticResource Divider}" />
+
+                    <CheckBox Style="{StaticResource ToggleSwitch}"
+                              IsChecked="{Binding LoggingEnabled, Mode=TwoWay}"
+                              AutomationProperties.Name="Write local diagnostic log">
+                        <StackPanel>
+                            <TextBlock Text="Write a local diagnostic log" Style="{StaticResource Label}" />
+                            <TextBlock Text="Technical events only. File contents, hashes and user names are never logged."
+                                       Style="{StaticResource Caption}"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+                </StackPanel>
+            </Border>
+
+            <!-- Tray -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Window and tray" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="The tray icon is optional. Every action remains available in the main window."
+                               Style="{StaticResource BodySecondary}"
+                               Margin="0,4,0,0" />
+
+                    <CheckBox Style="{StaticResource ToggleSwitch}"
+                              IsChecked="{Binding MinimizeToTray, Mode=TwoWay}"
+                              Margin="0,16,0,0"
+                              AutomationProperties.Name="Minimize to tray and hide on close">
+                        <StackPanel>
+                            <TextBlock Text="Keep Lumen in the notification area" Style="{StaticResource Label}" />
+                            <TextBlock Text="Closing or minimizing the window hides it instead of exiting. Use the tray menu to exit."
+                                       Style="{StaticResource Caption}"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+
+                    <CheckBox Style="{StaticResource ToggleSwitch}"
+                              IsChecked="{Binding ShowTrayNotifications, Mode=TwoWay}"
+                              Margin="0,14,0,0"
+                              AutomationProperties.Name="Show scan notifications">
+                        <StackPanel>
+                            <TextBlock Text="Show scan notifications" Style="{StaticResource Label}" />
+                            <TextBlock Text="A small notification when a scan finishes while Lumen is hidden."
+                                       Style="{StaticResource Caption}"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+                </StackPanel>
+            </Border>
+
+            <!-- Real-time protection -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Real-time protection" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="While Lumen is open it re-checks new, changed and renamed files in your quick-scan folders with the same documented rules used by on-demand scans. Files are only read; nothing is changed unless auto-quarantine is on."
+                               Style="{StaticResource BodySecondary}"
+                               Margin="0,4,0,0" />
+
+                    <CheckBox Style="{StaticResource ToggleSwitch}"
+                              IsChecked="{Binding RealtimeProtectionEnabled, Mode=TwoWay}"
+                              Margin="0,16,0,0"
+                              AutomationProperties.Name="Enable real-time protection">
+                        <StackPanel>
+                            <TextBlock Text="Watch Desktop, Documents and Downloads" Style="{StaticResource Label}" />
+                            <TextBlock Text="{Binding RealtimeStatusText}"
+                                       Style="{StaticResource Caption}"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+
+                    <CheckBox Style="{StaticResource ToggleSwitch}"
+                              IsChecked="{Binding RealtimeAutoQuarantine, Mode=TwoWay}"
+                              Margin="0,14,0,0"
+                              IsEnabled="{Binding RealtimeProtectionEnabled}"
+                              AutomationProperties.Name="Automatically quarantine real-time matches">
+                        <StackPanel>
+                            <TextBlock Text="Quarantine matches automatically" Style="{StaticResource Label}" />
+                            <TextBlock Text="Matched files are moved into the encrypted vault without an extra prompt. With this off, Lumen only notifies you and never touches the file."
+                                       Style="{StaticResource Caption}"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+
+                    <TextBlock Text="This is a user-mode folder watcher, not a driver. It cannot see activity in system folders or outside your user profile, and it only runs while Lumen is open. Keep Microsoft Defender on."
+                               Style="{StaticResource Caption}"
+                               Margin="0,12,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- Defender -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Microsoft Defender" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="Read-only status. Lumen never changes Defender settings."
+                                       Style="{StaticResource BodySecondary}"
+                                       Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Style="{StaticResource ChipBorder}" VerticalAlignment="Top">
+                            <TextBlock Text="{Binding Defender.BadgeText}" Style="{StaticResource ChipText}" />
+                        </Border>
+                    </Grid>
+
+                    <Border Style="{StaticResource InsetCard}" Margin="0,14,0,0" Padding="14,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Width="36" Height="36" CornerRadius="10"
+                                    Background="{DynamicResource Accent.Soft}" VerticalAlignment="Top">
+                                <TextBlock Text="&#xEA18;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                           FontSize="15" Foreground="{DynamicResource Accent.Text}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" Margin="12,0,12,0">
+                                <TextBlock Text="{Binding Defender.Title}" Style="{StaticResource Label}" />
+                                <TextBlock Text="{Binding Defender.Detail}"
+                                           Style="{StaticResource BodySecondary}"
+                                           FontSize="12"
+                                           Margin="0,3,0,0" />
+                                <TextBlock Text="{Binding Defender.Signature}"
+                                           Style="{StaticResource Caption}"
+                                           FontSize="11"
+                                           Margin="0,4,0,0" />
+                                <TextBlock Text="{Binding Defender.CheckedText}"
+                                           Style="{StaticResource Caption}"
+                                           FontSize="11"
+                                           Margin="0,2,0,0" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+                                <Button Style="{StaticResource IconButton}"
+                                        Command="{Binding RefreshDefenderCommand}"
+                                        Content="&#xE72C;"
+                                        ToolTip="Refresh Defender status"
+                                        AutomationProperties.Name="Refresh Microsoft Defender status" />
+                                <Button Content="Open Windows Security"
+                                        Style="{StaticResource LinkButton}"
+                                        Command="{Binding OpenWindowsSecurityCommand}"
+                                        Margin="8,6,0,0"
+                                        AutomationProperties.Name="Open Windows Security" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Detection rules -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Detection rules" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="These rules are intentionally small and documented. They are not a malware signature database."
+                                       Style="{StaticResource BodySecondary}"
+                                       Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Style="{StaticResource ChipBorder}" VerticalAlignment="Top">
+                            <TextBlock Text="{Binding RulesCountText}" Style="{StaticResource ChipText}" />
+                        </Border>
+                    </Grid>
+
+                    <Border Style="{StaticResource InsetCard}" Margin="0,14,0,0" Padding="14,6">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      MaxHeight="320">
+                            <ItemsControl ItemsSource="{Binding Rules}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="12.5"
+                                                               TextWrapping="Wrap" />
+                                                    <Border Style="{StaticResource ChipBorder}"
+                                                            Margin="8,0,0,0"
+                                                            Padding="6,1"
+                                                            Visibility="{Binding IsTestSignature, Converter={StaticResource BoolToVisibility}}">
+                                                        <TextBlock Text="Test signature" Style="{StaticResource ChipText}" FontSize="9.5" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Description}"
+                                                           Style="{StaticResource Caption}"
+                                                           FontSize="11.5"
+                                                           Margin="0,3,0,0" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                                                <Border Style="{StaticResource ChipBorder}" Padding="6,1">
+                                                    <TextBlock Text="{Binding CategoryLabel}" Style="{StaticResource ChipText}" FontSize="9.5" />
+                                                </Border>
+                                                <TextBlock Text="{Binding ConfidenceLabel}"
+                                                           Style="{StaticResource Caption}"
+                                                           FontSize="10.5"
+                                                           Margin="7,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Data and privacy -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Data and privacy" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="Lumen keeps its state under this account's local app data. It does not write to its install folder."
+                               Style="{StaticResource BodySecondary}"
+                               Margin="0,4,0,0" />
+
+                    <Border Style="{StaticResource InsetCard}" Margin="0,14,0,0" Padding="0">
+                        <StackPanel>
+                            <Grid Margin="14,11">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Settings, history and logs" Style="{StaticResource Label}"
+                                           FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding DataPathText}" Style="{StaticResource Mono}"
+                                           FontSize="11" Margin="12,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                           ToolTip="{Binding DataPathText}" />
+                                <Button Grid.Column="2" Content="Open" Style="{StaticResource LinkButton}"
+                                        Command="{Binding OpenDataFolderCommand}" VerticalAlignment="Center"
+                                        AutomationProperties.Name="Open the Lumen data folder" />
+                            </Grid>
+                            <Border Height="1" Background="{DynamicResource App.Border}" />
+                            <Grid Margin="14,11">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Encrypted quarantine" Style="{StaticResource Label}"
+                                           FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding QuarantinePathText}" Style="{StaticResource Mono}"
+                                           FontSize="11" Margin="12,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                           ToolTip="{Binding QuarantinePathText}" />
+                                <Button Grid.Column="2" Content="Open" Style="{StaticResource LinkButton}"
+                                        Command="{Binding OpenQuarantineFolderCommand}" VerticalAlignment="Center"
+                                        AutomationProperties.Name="Open the quarantine folder" />
+                            </Grid>
+                            <Border Height="1" Background="{DynamicResource App.Border}" />
+                            <Grid Margin="14,11">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Diagnostic log" Style="{StaticResource Label}"
+                                           FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding LogPathText}" Style="{StaticResource Mono}"
+                                           FontSize="11" Margin="12,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                           ToolTip="{Binding LogPathText}" />
+                                <Button Grid.Column="2" Content="Open" Style="{StaticResource LinkButton}"
+                                        Command="{Binding OpenLogFolderCommand}" VerticalAlignment="Center"
+                                        AutomationProperties.Name="Open the diagnostic log folder" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Test tools -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Test tools" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="Create harmless files to verify that scanning, findings and quarantine work end to end."
+                               Style="{StaticResource BodySecondary}"
+                               Margin="0,4,0,0" />
+
+                    <controls:Banner Margin="0,12,0,0"
+                                     Severity="Warning"
+                                     Title="These files are harmless"
+                                     Message="EICAR is a standard antivirus test string, not malware, but Microsoft Defender may quarantine it immediately. Use only a folder you control, preferably inside a test VM." />
+
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Text="Benign test files" Style="{StaticResource Label}" />
+                            <TextBlock Text="Plain text plus a deceptive double-extension name. None are executable."
+                                       Style="{StaticResource Caption}"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Style="{StaticResource SecondaryButton}"
+                                Command="{Binding CreateSamplesCommand}"
+                                Content="Create samples&#x2026;"
+                                VerticalAlignment="Center"
+                                AutomationProperties.Name="Create harmless test files" />
+                    </Grid>
+
+                    <Border Style="{StaticResource Divider}" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Text="EICAR test file" Style="{StaticResource Label}" />
+                            <TextBlock Text="The industry-standard scanner plumbing test. Defender may remove it at once."
+                                       Style="{StaticResource Caption}"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Style="{StaticResource DangerOutlineButton}"
+                                Command="{Binding CreateEicarCommand}"
+                                Content="Create EICAR&#x2026;"
+                                VerticalAlignment="Center"
+                                AutomationProperties.Name="Create the EICAR test file" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- About -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="About Lumen" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="{Binding AboutText}"
+                               Style="{StaticResource BodySecondary}"
+                               Margin="0,8,0,0" />
+                    <TextBlock Text="Keep Microsoft Defender enabled. Lumen's real-time protection is a user-mode folder watcher that runs only while the app is open; it is not a driver, cloud analysis or a full malware signature database."
+                               Style="{StaticResource Caption}"
+                               Margin="0,10,0,0" />
+
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding VersionText}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center" />
+                        <Button Grid.Column="1"
+                                Style="{StaticResource SecondaryButton}"
+                                Command="{Binding ResetDefaultsCommand}"
+                                Content="Restore defaults"
+                                AutomationProperties.Name="Restore default settings" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Settings are saved to this Windows account only. No account, cloud sync or telemetry is used."
+                       Style="{StaticResource Caption}"
+                       Margin="2,0,0,2" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

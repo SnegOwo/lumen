@@ -1,0 +1,22 @@
+﻿<Application x:Class="Lumen.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:infra="clr-namespace:Lumen.App.Infrastructure"
+             ShutdownMode="OnMainWindowClose">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Controls.xaml" />
+                <ResourceDictionary Source="Themes/DataTemplates.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
+            <infra:EnumEqualsConverter x:Key="EnumEquals" />
+            <infra:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibility" />
+            <infra:CountToVisibilityConverter x:Key="CountToVisibility" />
+            <infra:NullToVisibilityConverter x:Key="NullToVisibility" />
+            <infra:EmptyStringToVisibilityConverter x:Key="EmptyStringToVisibility" />
+            <infra:InverseBooleanConverter x:Key="InverseBoolean" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

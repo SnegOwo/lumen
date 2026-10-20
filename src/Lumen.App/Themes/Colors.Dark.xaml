@@ -1,0 +1,87 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Dark theme. Surfaces are intentionally low-glare; accent text and status
+         colors are lightened to keep WCAG-friendly contrast on dark backgrounds. -->
+
+    <SolidColorBrush x:Key="App.Background" Color="#0A1220" />
+    <SolidColorBrush x:Key="App.BackgroundAlt" Color="#0C1625" />
+    <SolidColorBrush x:Key="App.Surface" Color="#101B2D" />
+    <SolidColorBrush x:Key="App.SurfaceAlt" Color="#0D1727" />
+    <SolidColorBrush x:Key="App.SurfaceHover" Color="#17243A" />
+    <SolidColorBrush x:Key="App.SurfacePressed" Color="#1C2C45" />
+    <SolidColorBrush x:Key="App.Border" Color="#1E2C42" />
+    <SolidColorBrush x:Key="App.BorderStrong" Color="#2B3B55" />
+    <SolidColorBrush x:Key="App.TextPrimary" Color="#E6EDF7" />
+    <SolidColorBrush x:Key="App.TextSecondary" Color="#B3C2D6" />
+    <SolidColorBrush x:Key="App.TextMuted" Color="#8B9DB5" />
+    <SolidColorBrush x:Key="App.TextOnDark" Color="#F1F5F9" />
+    <SolidColorBrush x:Key="App.TextOnDarkMuted" Color="#94A3B8" />
+
+    <SolidColorBrush x:Key="Sidebar.Background" Color="#070F1C" />
+    <SolidColorBrush x:Key="Sidebar.Border" Color="#132033" />
+    <SolidColorBrush x:Key="Sidebar.Text" Color="#D8E3F0" />
+    <SolidColorBrush x:Key="Sidebar.TextMuted" Color="#8296AF" />
+    <SolidColorBrush x:Key="Sidebar.Hover" Color="#0E1B2C" />
+    <SolidColorBrush x:Key="Sidebar.Selected" Color="#102A3B" />
+    <SolidColorBrush x:Key="Sidebar.SelectedText" Color="#F0FDFA" />
+    <SolidColorBrush x:Key="Sidebar.Accent" Color="#2DD4BF" />
+    <SolidColorBrush x:Key="Sidebar.Card" Color="#0B1827" />
+
+    <SolidColorBrush x:Key="Accent.Primary" Color="#14B8A6" />
+    <SolidColorBrush x:Key="Accent.PrimaryHover" Color="#2DD4BF" />
+    <SolidColorBrush x:Key="Accent.PrimaryPressed" Color="#0F9B8E" />
+    <SolidColorBrush x:Key="Accent.OnPrimary" Color="#042F2E" />
+    <SolidColorBrush x:Key="Accent.Soft" Color="#0F2E2C" />
+    <SolidColorBrush x:Key="Accent.SoftBorder" Color="#115E59" />
+    <SolidColorBrush x:Key="Accent.Text" Color="#5EEAD4" />
+
+    <SolidColorBrush x:Key="Success.Text" Color="#4ADE80" />
+    <SolidColorBrush x:Key="Success.Soft" Color="#052E1A" />
+    <SolidColorBrush x:Key="Warning.Text" Color="#FBBF24" />
+    <SolidColorBrush x:Key="Warning.Soft" Color="#352605" />
+    <SolidColorBrush x:Key="Danger.Primary" Color="#DC2626" />
+    <SolidColorBrush x:Key="Danger.PrimaryHover" Color="#EF4444" />
+    <SolidColorBrush x:Key="Danger.OnPrimary" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="Danger.Text" Color="#F87171" />
+    <SolidColorBrush x:Key="Danger.Soft" Color="#3A1013" />
+    <SolidColorBrush x:Key="Danger.SoftBorder" Color="#7F1D1D" />
+    <SolidColorBrush x:Key="Info.Text" Color="#60A5FA" />
+    <SolidColorBrush x:Key="Info.Soft" Color="#0B2447" />
+
+    <SolidColorBrush x:Key="Chip.Background" Color="#17243A" />
+    <SolidColorBrush x:Key="Chip.Border" Color="#243550" />
+    <SolidColorBrush x:Key="Chip.Text" Color="#B8C7DB" />
+
+    <LinearGradientBrush x:Key="Hero.Background" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#08111F" Offset="0" />
+        <GradientStop Color="#0A2430" Offset="0.55" />
+        <GradientStop Color="#0D3A42" Offset="1" />
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="Hero.Border" Color="#1B4650" />
+    <SolidColorBrush x:Key="Hero.Text" Color="#F8FAFC" />
+    <SolidColorBrush x:Key="Hero.TextMuted" Color="#AFC4D4" />
+    <SolidColorBrush x:Key="Hero.BadgeBackground" Color="#113C43" />
+    <SolidColorBrush x:Key="Hero.BadgeText" Color="#7DE6D7" />
+    <RadialGradientBrush x:Key="Hero.Glow" Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.5" RadiusY="0.5">
+        <GradientStop Color="#662DD4BF" Offset="0" />
+        <GradientStop Color="#002DD4BF" Offset="1" />
+    </RadialGradientBrush>
+
+    <SolidColorBrush x:Key="Progress.Track" Color="#1B2A40" />
+    <SolidColorBrush x:Key="Progress.Fill" Color="#2DD4BF" />
+
+    <SolidColorBrush x:Key="Toggle.TrackOff" Color="#33445C" />
+    <SolidColorBrush x:Key="Toggle.TrackOn" Color="#14B8A6" />
+    <SolidColorBrush x:Key="Toggle.Knob" Color="#F8FAFC" />
+
+    <SolidColorBrush x:Key="Input.Background" Color="#0B1625" />
+    <SolidColorBrush x:Key="Input.Border" Color="#2B3B55" />
+    <SolidColorBrush x:Key="Input.BorderFocus" Color="#2DD4BF" />
+
+    <SolidColorBrush x:Key="Dialog.Scrim" Color="#B3000000" />
+    <SolidColorBrush x:Key="Tooltip.Background" Color="#E6EDF7" />
+    <SolidColorBrush x:Key="Tooltip.Text" Color="#0B1220" />
+
+    <x:Null x:Key="Card.Effect" />
+</ResourceDictionary>
