@@ -2,21 +2,25 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Lumen.App.Dialogs;
 using Lumen.App.Infrastructure;
+using Lumen.App.Localization;
 using Lumen.App.Services;
 using Lumen.Core.Models;
 
 namespace Lumen.App.ViewModels;
 
+/// <summary>
+/// The shell view model: navigation, the status line and the theme toggle.
+/// </summary>
 public sealed class MainViewModel : ObservableObject, IDisposable
 {
     private readonly AppServices _services;
     private object _currentPage;
-    private string _currentTitle = "Dashboard";
     private string _headerStatusText = "Ready";
     private string _headerStatusDetail = "Real-time protection active";
     private bool _isBusy;
-    private string _themeGlyph = "\uE708";
+    private string _themeGlyph = "\uE770";
     private string _themeTooltip = "Switch theme";
+    private bool _canToggleTheme = true;
     private bool _disposed;
 
     public MainViewModel(AppServices services)
@@ -31,16 +35,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         NavigationItems =
         [
-            new NavigationItemViewModel("dashboard", "Dashboard", "\uE80F", Dashboard, Navigate),
-            new NavigationItemViewModel("scan", "Scan", "\uE721", Scan, Navigate),
-            new NavigationItemViewModel("quarantine", "Quarantine", "\uE72E", Quarantine, Navigate),
-            new NavigationItemViewModel("history", "History", "\uE81C", History, Navigate),
-            new NavigationItemViewModel("settings", "Settings", "\uE713", Settings, Navigate)
+            new NavigationItemViewModel("dashboard", Text.NavDashboard, "\uE80F", Dashboard, Navigate),
+            new NavigationItemViewModel("scan", Text.NavScan, "\uE721", Scan, Navigate),
+            new NavigationItemViewModel("quarantine", Text.NavQuarantine, "\uE72E", Quarantine, Navigate),
+            new NavigationItemViewModel("history", Text.NavHistory, "\uE81C", History, Navigate),
+            new NavigationItemViewModel("settings", Text.NavSettings, "\uE713", Settings, Navigate)
         ];
 
         NavigateCommand = new RelayCommand<string>(key => Navigate(key ?? string.Empty));
         QuickScanCommand = new RelayCommand(StartQuickScan);
-        ToggleThemeCommand = new RelayCommand(ToggleTheme);
+        ToggleThemeCommand = new RelayCommand(ToggleTheme, () => CanToggleTheme);
         OpenSettingsCommand = new RelayCommand(() => Navigate("settings"));
 
         _currentPage = Dashboard;
@@ -49,6 +53,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Scan.PropertyChanged += OnScanPropertyChanged;
         _services.DataChanged += OnDataChanged;
         _services.SettingsChanged += OnSettingsChanged;
+        Text.LanguageChanged += OnLanguageChanged;
 
         UpdateHeader();
         UpdateBadges();
@@ -68,17 +73,36 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand ToggleThemeCommand { get; }
     public RelayCommand OpenSettingsCommand { get; }
 
+    /// <summary>The page that is currently shown. It is one of the five page view models.</summary>
     public object CurrentPage
     {
         get => _currentPage;
-        private set => SetProperty(ref _currentPage, value);
+        private set
+        {
+            if (!SetProperty(ref _currentPage, value)) return;
+            OnPropertyChanged(
+                nameof(IsDashboardCurrent),
+                nameof(IsScanCurrent),
+                nameof(IsQuarantineCurrent),
+                nameof(IsHistoryCurrent),
+                nameof(IsSettingsCurrent));
+        }
     }
 
-    public string CurrentTitle
-    {
-        get => _currentTitle;
-        private set => SetProperty(ref _currentTitle, value);
-    }
+    /// <summary>True when the dashboard is the visible page.</summary>
+    public bool IsDashboardCurrent => ReferenceEquals(CurrentPage, Dashboard);
+
+    /// <summary>True when the scan page is the visible page.</summary>
+    public bool IsScanCurrent => ReferenceEquals(CurrentPage, Scan);
+
+    /// <summary>True when the quarantine page is the visible page.</summary>
+    public bool IsQuarantineCurrent => ReferenceEquals(CurrentPage, Quarantine);
+
+    /// <summary>True when the history page is the visible page.</summary>
+    public bool IsHistoryCurrent => ReferenceEquals(CurrentPage, History);
+
+    /// <summary>True when the settings page is the visible page.</summary>
+    public bool IsSettingsCurrent => ReferenceEquals(CurrentPage, Settings);
 
     public string HeaderStatusText
     {
@@ -110,7 +134,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         private set => SetProperty(ref _themeTooltip, value);
     }
 
-    public bool IsScanning => Scan.IsScanning;
+    /// <summary>
+    /// False when Windows itself asks for a high-contrast theme. The palette is then
+    /// owned by the operating system and the toggle would be a silent no-op.
+    /// </summary>
+    public bool CanToggleTheme
+    {
+        get => _canToggleTheme;
+        private set
+        {
+            if (!SetProperty(ref _canToggleTheme, value)) return;
+            ToggleThemeCommand.RaiseCanExecuteChanged();
+        }
+    }
 
     public void Navigate(string key)
     {
@@ -120,7 +156,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         foreach (var candidate in NavigationItems) candidate.IsSelected = ReferenceEquals(candidate, item);
         CurrentPage = item.Page;
-        CurrentTitle = item.Title;
         if (item.Page is IPageViewModel page) page.OnNavigatedTo();
         UpdateHeader();
     }
@@ -196,8 +231,24 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void OnSettingsChanged(object? sender, EventArgs e)
     {
+        // A language change is a setting change: the static XAML wording and the wording
+        // the view models own both have to follow.
+        if (_services.Language != Text.Current) Text.Set(_services.Language);
+
         UpdateThemeState();
         UpdateHeader();
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        NavigationItems[0].Title = Text.NavDashboard;
+        NavigationItems[1].Title = Text.NavScan;
+        NavigationItems[2].Title = Text.NavQuarantine;
+        NavigationItems[3].Title = Text.NavHistory;
+        NavigationItems[4].Title = Text.NavSettings;
+
+        UpdateHeader();
+        UpdateThemeState();
     }
 
     private void UpdateBadges()
@@ -211,46 +262,73 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         if (Scan.IsQuarantining)
         {
-            HeaderStatusText = "Quarantining";
-            HeaderStatusDetail = "Encrypting files locally";
+            HeaderStatusText = Text.StatusQuarantining;
+            HeaderStatusDetail = Text.StatusQuarantiningDetail;
             IsBusy = true;
             return;
         }
 
         if (Scan.IsScanning)
         {
-            HeaderStatusText = "Scanning";
-            HeaderStatusDetail = Scan.FilesScannedText + " files inspected";
+            HeaderStatusText = Text.StatusScanning;
+            HeaderStatusDetail = Text.StatusScanningDetail(Scan.FilesScannedText);
             IsBusy = true;
             return;
         }
 
-        HeaderStatusText = "Ready";
+        HeaderStatusText = Text.StatusReady;
         HeaderStatusDetail = _services.Realtime.IsRunning
-            ? "Real-time protection active"
-            : "On-demand scanning";
+            ? Text.StatusRealtimeActive
+            : Text.StatusOnDemand;
         IsBusy = false;
     }
 
     private void UpdateThemeState()
     {
-        ThemeGlyph = _services.Theme.IsDark ? "\uE706" : "\uE708";
-        ThemeTooltip = _services.Theme.IsHighContrast
-            ? "High contrast is active. Theme preference: " + _services.Settings.Theme
-            : _services.Theme.IsDark
-                ? "Switch to light theme"
-                : "Switch to dark theme";
+        var preference = _services.Settings.Theme;
+
+        ThemeGlyph = preference switch
+        {
+            AppTheme.Dark => "\uE706",
+            AppTheme.Light => "\uE708",
+            _ => "\uE770"
+        };
+
+        CanToggleTheme = !_services.Theme.IsSystemHighContrast;
+
+        ThemeTooltip = _services.Theme.IsSystemHighContrast
+            ? Text.ThemeTooltipHighContrast
+            : preference switch
+            {
+                AppTheme.Light => Text.ThemeTooltipDark,
+                AppTheme.Dark => Text.ThemeTooltipSystem,
+                AppTheme.HighContrast => Text.ThemeTooltipHighContrastChosen,
+                _ => Text.ThemeTooltipLight
+            };
     }
 
+    /// <summary>
+    /// Cycles the theme: System, then Light, then Dark, then back to System. It is a
+    /// no-op while Windows owns the palette through its own high-contrast setting,
+    /// and the button is disabled in that case.
+    /// </summary>
     private void ToggleTheme()
     {
-        var next = _services.Theme.IsDark ? AppTheme.Light : AppTheme.Dark;
+        if (!CanToggleTheme) return;
+
+        var next = _services.Settings.Theme switch
+        {
+            AppTheme.System => AppTheme.Light,
+            AppTheme.Light => AppTheme.Dark,
+            _ => AppTheme.System
+        };
+
         var result = _services.UpdateSettings(settings => settings with { Theme = next });
         if (!result.Ok)
         {
             _services.Dialogs.ShowMessage(
-                "Theme could not be saved",
-                result.Message ?? "The settings file could not be updated.",
+                Text.ThemeTooltip,
+                result.Message ?? Text.SettingsSaveFailed,
                 MessageSeverity.Warning);
         }
 
@@ -264,13 +342,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Scan.PropertyChanged -= OnScanPropertyChanged;
         _services.DataChanged -= OnDataChanged;
         _services.SettingsChanged -= OnSettingsChanged;
+        Text.LanguageChanged -= OnLanguageChanged;
+
+        Dashboard.Dispose();
+        Scan.Dispose();
+        Quarantine.Dispose();
+        History.Dispose();
+        Settings.Dispose();
     }
 }
 
+/// <summary>One entry of the sidebar navigation.</summary>
 public sealed class NavigationItemViewModel : ObservableObject
 {
     private bool _isSelected;
     private int _badgeCount;
+    private string _title;
 
     public NavigationItemViewModel(
         string key,
@@ -280,17 +367,27 @@ public sealed class NavigationItemViewModel : ObservableObject
         Action<string> navigate)
     {
         Key = key;
-        Title = title;
+        _title = title;
         Glyph = glyph;
         Page = page;
         SelectCommand = new RelayCommand(() => navigate(key));
     }
 
     public string Key { get; }
-    public string Title { get; }
     public string Glyph { get; }
     public object Page { get; }
     public RelayCommand SelectCommand { get; }
+
+    /// <summary>The visible label. It follows the interface language.</summary>
+    public string Title
+    {
+        get => _title;
+        set
+        {
+            if (!SetProperty(ref _title, value)) return;
+            OnPropertyChanged(nameof(AutomationName));
+        }
+    }
 
     public bool IsSelected
     {
@@ -314,5 +411,5 @@ public sealed class NavigationItemViewModel : ObservableObject
 
     public bool HasBadge => _badgeCount > 0;
     public string BadgeText => _badgeCount > 99 ? "99+" : _badgeCount.ToString("N0");
-    public string AutomationName => HasBadge ? $"{Title}, {_badgeCount} quarantined items" : Title;
+    public string AutomationName => HasBadge ? Text.NavBadge(Title, _badgeCount) : Title;
 }

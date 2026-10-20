@@ -1,16 +1,23 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows;
 using Lumen.App.Dialogs;
 using Lumen.App.Infrastructure;
+using Lumen.App.Localization;
+using Lumen.App.Remediation;
 using Lumen.App.Services;
 using Lumen.Core.Models;
 using Lumen.Core.Util;
 
 namespace Lumen.App.ViewModels;
 
-public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
+/// <summary>
+/// The quarantine page: the encrypted vault and what can be done with it.
+/// </summary>
+public sealed class QuarantineViewModel : ObservableObject, IPageViewModel, IDisposable
 {
     private readonly AppServices _services;
+    private readonly RemediationCoordinator _remediation;
     private QuarantineItemViewModel? _selectedItem;
     private bool _hasItems;
     private bool _isWorking;
@@ -18,22 +25,34 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
     private string _bannerTitle = string.Empty;
     private string _bannerMessage = string.Empty;
     private MessageSeverity _bannerSeverity = MessageSeverity.Info;
+    private bool _isRemediationEnabled;
+    private string _workingLabel = string.Empty;
+    private bool _disposed;
 
+    /// <summary>Creates the quarantine view model.</summary>
     public QuarantineViewModel(AppServices services, Action goToScan)
     {
         _services = services;
+        _remediation = new RemediationCoordinator(services);
 
         GoToScanCommand = new RelayCommand(goToScan);
         RefreshCommand = new RelayCommand(Refresh, () => !IsWorking);
         RestoreCommand = new AsyncRelayCommand(RestoreAsync, () => HasSelection && !IsWorking);
         RestoreToCommand = new AsyncRelayCommand(RestoreToAsync, () => HasSelection && !IsWorking);
         DeleteCommand = new AsyncRelayCommand(DeleteAsync, () => HasSelection && !IsWorking);
+        CleanFileCommand = new AsyncRelayCommand(
+            CleanFileAsync,
+            () => HasSelection && IsRemediationEnabled && !IsWorking);
         RevealOriginalCommand = new RelayCommand(RevealOriginal, () => HasSelection && !IsWorking && SelectedItem?.OriginalExists == true);
         OpenVaultCommand = new RelayCommand(OpenVault);
         CopyPathCommand = new RelayCommand(CopyPath, () => HasSelection);
         DismissBannerCommand = new RelayCommand(() => HasBanner = false);
 
         WarningText = services.Quarantine.LoadWarning;
+        _isRemediationEnabled = services.Settings.RemediationEnabled;
+
+        services.SettingsChanged += OnServicesSettingsChanged;
+        Text.LanguageChanged += OnLanguageChanged;
     }
 
     public ObservableCollection<QuarantineItemViewModel> Items { get; } = [];
@@ -43,6 +62,13 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
     public AsyncRelayCommand RestoreCommand { get; }
     public AsyncRelayCommand RestoreToCommand { get; }
     public AsyncRelayCommand DeleteCommand { get; }
+
+    /// <summary>
+    /// Cleans up the file behind the selected quarantine item. It is only enabled
+    /// when the user allowed remediation actions in Settings.
+    /// </summary>
+    public AsyncRelayCommand CleanFileCommand { get; }
+
     public RelayCommand RevealOriginalCommand { get; }
     public RelayCommand OpenVaultCommand { get; }
     public RelayCommand CopyPathCommand { get; }
@@ -61,14 +87,13 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         }
     }
 
-    public string CountText => Items.Count == 1 ? "1 encrypted file" : $"{Items.Count:N0} encrypted files";
+    public string CountText => Text.QuarantineCountChip(Items.Count);
 
     public string VaultSummary => Items.Count == 0
-        ? "Nothing is quarantined."
-        : CountText + " isolated in this account's encrypted vault.";
+        ? Text.QuarantineSummaryEmpty
+        : Text.QuarantineSummary(Items.Count);
 
-    public string EmptyDetail =>
-        "Files you choose to quarantine are encrypted with AES-256, integrity-checked, and kept here until you restore or delete them.";
+    public string EmptyDetail => Text.QuarantineEmptyBody;
 
     public QuarantineItemViewModel? SelectedItem
     {
@@ -91,8 +116,19 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         private set
         {
             if (!SetProperty(ref _isWorking, value)) return;
+            OnPropertyChanged(nameof(HasWorkProgress), nameof(WorkingLabel));
             RaiseCommandStates();
         }
+    }
+
+    /// <summary>True while a long vault operation is running.</summary>
+    public bool HasWorkProgress => IsWorking;
+
+    /// <summary>What the vault is busy with, shown next to the progress strip.</summary>
+    public string WorkingLabel
+    {
+        get => _workingLabel;
+        private set => SetProperty(ref _workingLabel, value);
     }
 
     public bool HasBanner
@@ -119,6 +155,20 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         private set => SetProperty(ref _bannerSeverity, value);
     }
 
+    /// <summary>
+    /// True when the user allowed remediation actions. The Clean action stays disabled
+    /// while it is off.
+    /// </summary>
+    public bool IsRemediationEnabled
+    {
+        get => _isRemediationEnabled;
+        private set
+        {
+            if (!SetProperty(ref _isRemediationEnabled, value)) return;
+            RaiseCommandStates();
+        }
+    }
+
     public void OnNavigatedTo() => Refresh();
 
     public void Refresh()
@@ -140,14 +190,15 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         if (SelectedItem is null) return;
         var item = SelectedItem;
         var proceed = _services.Dialogs.Confirm(
-            "Restore this file?",
-            "Lumen will decrypt the encrypted copy, verify its SHA-256 hash, and write it back. " +
-            "If the original folder no longer exists, you will be asked where to put the file.",
-            "Restore",
-            details: "Original location: " + item.OriginalPath + Environment.NewLine + "SHA-256: " + item.Source.Sha256);
+            Text.RestoreTitle,
+            Text.RestoreBody,
+            Text.QuarantineRestore,
+            details: Text.RestoreOriginalPrefix + item.OriginalPath + Environment.NewLine +
+                      "SHA-256: " + item.Source.Sha256);
         if (!proceed) return;
 
         IsWorking = true;
+        WorkingLabel = item.FileName;
         try
         {
             var result = await _services.Quarantine.RestoreAsync(
@@ -158,11 +209,12 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         catch (Exception ex)
         {
             _services.Log.Error("Quarantine", "Restore failed unexpectedly.", ex);
-            SetBanner("Restore failed", "The file could not be restored. The encrypted copy was kept.", MessageSeverity.Danger);
+            SetBanner(Text.RestoreFailedTitle, Text.RestoreFailedBody, MessageSeverity.Danger);
         }
         finally
         {
             IsWorking = false;
+            WorkingLabel = string.Empty;
         }
     }
 
@@ -172,7 +224,7 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         var item = SelectedItem;
 
         var folder = _services.Dialogs.PickFolder(
-            "Choose a folder for the restored file",
+            Text.RestoreFolderPickerTitle,
             item.OriginalFolder);
         if (string.IsNullOrWhiteSpace(folder)) return;
 
@@ -184,16 +236,16 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         if (File.Exists(destination))
         {
             overwrite = _services.Dialogs.Confirm(
-                "Replace the existing file?",
-                "A file with this name already exists in the folder you chose. " +
-                "Restoring will replace it with the quarantined copy. This cannot be undone.",
-                "Replace file",
+                Text.RestoreReplaceTitle,
+                Text.RestoreReplaceBody,
+                Text.RestoreReplaceFileConfirm,
                 danger: true,
-                details: "Existing file: " + Presentation.SanitizePath(destination));
+                details: Text.RestoreOriginalPrefix + Presentation.SanitizePath(destination));
             if (!overwrite) return;
         }
 
         IsWorking = true;
+        WorkingLabel = item.FileName;
         try
         {
             var result = await _services.Quarantine.RestoreAsync(
@@ -209,11 +261,12 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         catch (Exception ex)
         {
             _services.Log.Error("Quarantine", "Restore-to-folder failed unexpectedly.", ex);
-            SetBanner("Restore failed", "The file could not be restored. The encrypted copy was kept.", MessageSeverity.Danger);
+            SetBanner(Text.RestoreFailedTitle, Text.RestoreFailedBody, MessageSeverity.Danger);
         }
         finally
         {
             IsWorking = false;
+            WorkingLabel = string.Empty;
         }
     }
 
@@ -226,8 +279,8 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         {
             case RestoreStatus.Restored:
                 SetBanner(
-                    "File restored",
-                    "The file was decrypted and verified at " + Presentation.SanitizePath(result.RestoredPath),
+                    Text.RestoreDoneTitle,
+                    Text.RestoreDoneBody(Presentation.SanitizePath(result.RestoredPath)),
                     MessageSeverity.Success);
                 Refresh();
                 _services.NotifyDataChanged();
@@ -237,17 +290,16 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
                 if (attempt >= 2) break;
 
                 var replace = _services.Dialogs.Confirm(
-                    "A file already exists at the original location",
-                    "Restoring will replace the current file with the verified quarantined copy. " +
-                    "The current file cannot be recovered by Lumen.",
-                    "Replace existing file",
+                    Text.RestoreTargetExistsTitle,
+                    Text.RestoreTargetExistsBody,
+                    Text.RestoreReplaceConfirm,
                     danger: true,
-                    details: "Existing file: " + Presentation.SanitizePath(result.RestoredPath));
+                    details: Text.RestoreOriginalPrefix + Presentation.SanitizePath(result.RestoredPath));
                 if (!replace)
                 {
                     SetBanner(
-                        "Restore cancelled",
-                        "The existing file was left in place. The quarantine item was not changed.",
+                        Text.RestoreCancelledTitle,
+                        Text.RestoreCancelledKeptBody,
                         MessageSeverity.Info);
                     return;
                 }
@@ -262,27 +314,27 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
                 if (attempt >= 2) break;
 
                 var chooseFolder = _services.Dialogs.Confirm(
-                    "The original folder no longer exists",
-                    "The folder this file came from is gone. Choose another folder to restore the file into.",
-                    "Choose folder",
-                    details: "Original location: " + item.OriginalPath);
+                    Text.RestoreFolderGoneTitle,
+                    Text.RestoreFolderGoneBody,
+                    Text.RestoreChooseFolder,
+                    details: Text.RestoreOriginalPrefix + item.OriginalPath);
                 if (!chooseFolder)
                 {
                     SetBanner(
-                        "Restore cancelled",
-                        "The encrypted copy was kept. You can restore it later to a folder you choose.",
+                        Text.RestoreCancelledTitle,
+                        Text.RestoreKeptBody,
                         MessageSeverity.Info);
                     return;
                 }
 
                 var folder = _services.Dialogs.PickFolder(
-                    "Choose a folder for the restored file",
+                    Text.RestoreFolderPickerTitle,
                     _services.UserProfile);
                 if (string.IsNullOrWhiteSpace(folder))
                 {
                     SetBanner(
-                        "Restore cancelled",
-                        "The encrypted copy was kept.",
+                        Text.RestoreCancelledTitle,
+                        Text.RestoreKeptBody,
                         MessageSeverity.Info);
                     return;
                 }
@@ -294,14 +346,14 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
                 if (File.Exists(destination))
                 {
                     overwrite = _services.Dialogs.Confirm(
-                        "Replace the existing file?",
-                        "A file with this name already exists in the chosen folder. Replace it with the quarantined copy?",
-                        "Replace file",
+                        Text.RestoreReplaceTitle,
+                        Text.RestoreReplaceBody,
+                        Text.RestoreReplaceFileConfirm,
                         danger: true,
-                        details: "Existing file: " + Presentation.SanitizePath(destination));
+                        details: Text.RestoreOriginalPrefix + Presentation.SanitizePath(destination));
                     if (!overwrite)
                     {
-                        SetBanner("Restore cancelled", "The encrypted copy was kept.", MessageSeverity.Info);
+                        SetBanner(Text.RestoreCancelledTitle, Text.RestoreKeptBody, MessageSeverity.Info);
                         return;
                     }
                 }
@@ -319,33 +371,31 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
 
             case RestoreStatus.Corrupt:
                 _services.Dialogs.ShowMessage(
-                    "The encrypted copy failed verification",
-                    "Lumen did not restore the file because the encrypted copy is incomplete or was modified. " +
-                    "The quarantine item remains in the vault so the evidence is preserved. " +
-                    "Do not delete it if you may need support.",
+                    Text.RestoreCorruptTitle,
+                    Text.RestoreCorruptBody,
                     MessageSeverity.Danger,
-                    "Status: " + result.Message);
+                    Text.RestoreStatusPrefix + result.Message);
                 SetBanner(
-                    "Restore failed integrity check",
-                    "Nothing was written. The quarantine item remains in the vault.",
+                    Text.RestoreIntegrityTitle,
+                    Text.RestoreIntegrityBody,
                     MessageSeverity.Danger);
                 return;
 
             case RestoreStatus.NotFound:
-                SetBanner("Item not found", result.Message, MessageSeverity.Warning);
+                SetBanner(Text.QuarantineItemNotFoundTitle, result.Message, MessageSeverity.Warning);
                 Refresh();
                 return;
 
             case RestoreStatus.Cancelled:
-                SetBanner("Restore cancelled", "Nothing was written.", MessageSeverity.Info);
+                SetBanner(Text.RestoreCancelledTitle, Text.RestoreCancelledBody, MessageSeverity.Info);
                 return;
 
             default:
-                SetBanner("Restore failed", result.Message, MessageSeverity.Danger);
+                SetBanner(Text.RestoreFailedTitle, result.Message, MessageSeverity.Danger);
                 return;
         }
 
-        SetBanner("Restore failed", result.Message, MessageSeverity.Danger);
+        SetBanner(Text.RestoreFailedTitle, result.Message, MessageSeverity.Danger);
     }
 
     private async Task DeleteAsync()
@@ -353,47 +403,73 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         if (SelectedItem is null) return;
         var item = SelectedItem;
 
-        var details = "Original location: " + item.OriginalPath + Environment.NewLine +
+        var details = Text.RestoreOriginalPrefix + item.OriginalPath + Environment.NewLine +
                       "SHA-256: " + item.Source.Sha256;
         if (item.OriginalExists)
         {
-            details += Environment.NewLine +
-                       "The original file still exists at its original location because it could not be removed.";
+            details += Environment.NewLine + Text.QuarantineOriginalPresentDetail;
         }
 
         var proceed = _services.Dialogs.Confirm(
-            "Permanently delete this encrypted copy?",
-            "This deletes the encrypted vault file and its index entry. It cannot be undone. " +
-            "If the original file was removed when it was quarantined, the file will be gone permanently.",
-            "Delete permanently",
+            Text.QuarantineDeleteTitle,
+            Text.QuarantineDeleteBody,
+            Text.QuarantineDeleteConfirm,
             danger: true,
             details: details);
         if (!proceed) return;
 
         IsWorking = true;
+        WorkingLabel = item.FileName;
         try
         {
             var result = await _services.Quarantine.DeleteAsync(item.Id, CancellationToken.None);
             if (result.Deleted)
             {
-                SetBanner("Quarantine item deleted", result.Message, MessageSeverity.Success);
+                SetBanner(Text.QuarantineDeletedTitle, result.Message, MessageSeverity.Success);
                 Refresh();
                 _services.NotifyDataChanged();
             }
             else
             {
-                SetBanner("Delete failed", result.Message, MessageSeverity.Danger);
+                SetBanner(Text.QuarantineDeleteFailedTitle, result.Message, MessageSeverity.Danger);
             }
         }
         catch (Exception ex)
         {
             _services.Log.Error("Quarantine", "Permanent deletion failed unexpectedly.", ex);
-            SetBanner("Delete failed", "The item could not be deleted.", MessageSeverity.Danger);
+            SetBanner(Text.QuarantineDeleteFailedTitle, Text.QuarantineDeleteFailedBody, MessageSeverity.Danger);
         }
         finally
         {
             IsWorking = false;
+            WorkingLabel = string.Empty;
         }
+    }
+
+    /// <summary>
+    /// Cleans up the file behind the selected quarantine item. The flow is plan, then
+    /// review, then confirm, then execute.
+    /// </summary>
+    private async Task CleanFileAsync()
+    {
+        if (IsWorking) return;
+        if (!IsRemediationEnabled) return;
+        var item = SelectedItem;
+        if (item is null) return;
+
+        var target = new RemediationTarget
+        {
+            FilePath = item.Source.OriginalPath,
+            Sha256 = item.Source.Sha256,
+            SizeBytes = item.Source.SizeBytes,
+            FindingTitle = item.FindingTitle,
+            FindingDetail = item.FindingDetail,
+            QuarantineItemId = item.Id
+        };
+
+        await _remediation.RunAsync(target, CancellationToken.None);
+        Refresh();
+        _services.NotifyDataChanged();
     }
 
     private void RevealOriginal()
@@ -402,8 +478,8 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         if (!_services.RevealFile(SelectedItem.Source.OriginalPath))
         {
             _services.Dialogs.ShowMessage(
-                "Original file not found",
-                "The original file is no longer at that location. Use Restore to write the quarantined copy to a folder you choose.",
+                Text.QuarantineOriginalMissingTitle,
+                Text.QuarantineOriginalMissingBody,
                 MessageSeverity.Info);
         }
     }
@@ -412,7 +488,7 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
     {
         if (!_services.OpenFolder(_services.Paths.QuarantineDirectory))
         {
-            SetBanner("Folder could not be opened", "The quarantine folder could not be opened.", MessageSeverity.Warning);
+            SetBanner(Text.QuarantineFolderFailedTitle, Text.QuarantineFolderFailedBody, MessageSeverity.Warning);
         }
     }
 
@@ -422,12 +498,12 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         try
         {
             Clipboard.SetText(SelectedItem.Source.OriginalPath);
-            SetBanner("Path copied", "The original path was copied to the clipboard.", MessageSeverity.Info);
+            SetBanner(Text.QuarantinePathCopiedTitle, Text.QuarantinePathCopiedBody, MessageSeverity.Info);
         }
         catch (Exception ex)
         {
             _services.Log.Warn("Shell", "The path could not be copied.", ex);
-            SetBanner("Could not copy the path", "The clipboard is unavailable right now.", MessageSeverity.Warning);
+            SetBanner(Text.QuarantinePathCopyFailedTitle, Text.QuarantinePathCopyFailedBody, MessageSeverity.Warning);
         }
     }
 
@@ -439,13 +515,37 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel
         HasBanner = true;
     }
 
+    private void OnServicesSettingsChanged(object? sender, EventArgs e)
+    {
+        IsRemediationEnabled = _services.Settings.RemediationEnabled;
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(
+            nameof(CountText),
+            nameof(VaultSummary),
+            nameof(EmptyDetail),
+            nameof(WorkingLabel));
+    }
+
     private void RaiseCommandStates()
     {
         RefreshCommand.RaiseCanExecuteChanged();
         RestoreCommand.RaiseCanExecuteChanged();
         RestoreToCommand.RaiseCanExecuteChanged();
         DeleteCommand.RaiseCanExecuteChanged();
+        CleanFileCommand.RaiseCanExecuteChanged();
         RevealOriginalCommand.RaiseCanExecuteChanged();
         CopyPathCommand.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>Unsubscribes from the events this view model listens to.</summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _services.SettingsChanged -= OnServicesSettingsChanged;
+        Text.LanguageChanged -= OnLanguageChanged;
     }
 }

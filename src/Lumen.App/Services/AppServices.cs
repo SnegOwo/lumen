@@ -85,7 +85,7 @@ public sealed class AppServices : IDisposable
         if (!string.IsNullOrWhiteSpace(Quarantine.LoadWarning)) warnings.Add(Quarantine.LoadWarning);
         StartupWarnings = warnings;
 
-        if (startRealtimeProtection && Settings.RealtimeProtectionEnabled) Realtime.Start();
+        if (startRealtimeProtection && Settings.RealtimeProtectionEnabled && !RealtimeSuppressed) Realtime.Start();
 
         Log.Info(
             "App",
@@ -131,6 +131,21 @@ public sealed class AppServices : IDisposable
         Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
 
     public string DataDirectory => Paths.Root;
+
+    /// <summary>
+    /// True when the real-time watcher must not start. Set the <c>LUMEN_DISABLE_REALTIME</c>
+    /// environment variable to <c>1</c> to run Lumen without watching any folder, which is
+    /// what the sandbox mode does: a demonstration run should never look at the real
+    /// Desktop, Documents or Downloads.
+    /// </summary>
+    public static bool RealtimeSuppressed
+    {
+        get
+        {
+            var value = Environment.GetEnvironmentVariable("LUMEN_DISABLE_REALTIME");
+            return value is "1" or "true" or "TRUE" or "yes";
+        }
+    }
 
     /// <summary>The user interface language, taken from the saved settings.</summary>
     public AppLanguage Language => Settings.Language;

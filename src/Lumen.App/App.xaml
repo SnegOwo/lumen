@@ -8,6 +8,10 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Themes/Controls.xaml" />
                 <ResourceDictionary Source="Themes/DataTemplates.xaml" />
+                <!-- The static interface wording. Themes/Strings.fr.xaml replaces this
+                     dictionary at runtime when the user picks Français, and every
+                     {DynamicResource Strings.X} in the views follows immediately. -->
+                <ResourceDictionary Source="Themes/Strings.en.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />

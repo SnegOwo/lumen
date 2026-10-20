@@ -61,6 +61,22 @@ public partial class App : Application
             window.Show();
             _viewModel.Navigate("dashboard");
 
+            // A demonstration run: raise the detection alert on a harmless sample so
+            // the whole pipeline can be shown without real malware.
+            if (e.Args.Any(argument => string.Equals(argument, "--demo", StringComparison.OrdinalIgnoreCase)))
+            {
+                Dispatcher.BeginInvoke(
+                    new Action(() => _services.TriggerDemoDetection()),
+                    DispatcherPriority.ApplicationIdle);
+            }
+
+            var shotsIndex = Array.FindIndex(e.Args, a => a == "--shots");
+            if (shotsIndex >= 0)
+            {
+                var dir = shotsIndex + 1 < e.Args.Length ? e.Args[shotsIndex + 1] : "shots";
+                Dispatcher.BeginInvoke(new Action(() => CapturePages(window, _viewModel, dir)));
+            }
+
             if (_services.StartupWarnings.Count > 0)
             {
                 var warnings = string.Join(Environment.NewLine, _services.StartupWarnings);
@@ -95,8 +111,87 @@ public partial class App : Application
         }
     }
 
-    protected override void OnExit(ExitEventArgs e)
+    /// <summary>
+    /// Walks every page and saves the window as a PNG. It exists so the interface can be
+    /// reviewed without a human clicking through it, and so a change to the design can be
+    /// compared page by page.
+    /// </summary>
+    private static void CapturePages(Window window, MainViewModel? viewModel, string directory)
     {
+        if (viewModel is null) return;
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        var pages = viewModel.NavigationItems.ToArray();
+        var index = 0;
+
+        void Step()
+        {
+            if (index >= pages.Length)
+            {
+                Application.Current.Shutdown();
+                return;
+            }
+
+            var page = pages[index++];
+            try
+            {
+                viewModel.Navigate(page.Key);
+            }
+            catch (Exception ex)
+            {
+                _services?.Log.Warn("Screenshots", "A page could not be captured: " + page.Key, ex);
+            }
+
+            var timer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(600)
+            };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                Save(window, directory, page.Key);
+                Step();
+            };
+            timer.Start();
+        }
+
+        Step();
+    }
+
+    private static void Save(Window window, string directory, string name)
+    {
+        try
+        {
+            var width = (int)Math.Max(1, window.ActualWidth);
+            var height = (int)Math.Max(1, window.ActualHeight);
+            if (width < 10 || height < 10) return;
+
+            var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                width, height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            bitmap.Render(window);
+
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+
+            var path = Path.Combine(directory, name + ".png");
+            using var stream = File.Create(path);
+            encoder.Save(stream);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            // A screenshot that fails is not worth crashing over.
+        }
+    }
+
+    protected override void OnExit(ExitEventArgs e)    {
         try
         {
             _viewModel?.Dispose();

@@ -194,6 +194,51 @@ Coverage:
 dotnet test tests/Lumen.Core.Tests/Lumen.Core.Tests.csproj --collect:"XPlat Code Coverage"
 ```
 
+## Running it
+
+### The normal way
+
+```powershell
+dotnet run --project src\Lumen.App\Lumen.App.csproj
+```
+
+Lumen keeps everything in `%LOCALAPPDATA%\Lumen` — settings, history, the quarantine
+vault, the logs and the remediation journal.
+
+### The sandboxed way
+
+For a disposable run that touches nothing outside the project folder, and that never
+watches a real folder:
+
+```powershell
+.\scripts\run-sandbox.ps1 -Build                 # build and run, isolated
+.\scripts\run-sandbox.ps1 -Build -Demo           # raise the detection alert on startup
+.\scripts\run-sandbox.ps1 -Build -Screenshot      # also capture the screen
+.\scripts\clean-sandbox.ps1                      # delete every trace
+```
+
+Two environment variables control it:
+
+| Variable | Effect |
+|---|---|
+| `LUMEN_DATA_DIR` | Puts Lumen's data folder here instead of `%LOCALAPPDATA%\Lumen` |
+| `LUMEN_DISABLE_REALTIME` | `1` stops the on-access watcher from watching any folder |
+
+### Command line
+
+| Argument | Effect |
+|---|---|
+| `--demo` | Raises the detection alert on a harmless sample a moment after startup |
+| `--shots <folder>` | Walks every page, saves a PNG of each, then exits |
+
+---
+
+## Recording a video
+
+`docs/VIDEO-GUIDE.md` is a shot list for demonstrating the app: which test file to use,
+which shots to take, what to actually say about the limits, and how to clean up
+afterwards.
+
 ---
 
 ## On-disk formats

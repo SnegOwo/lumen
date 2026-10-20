@@ -5,6 +5,8 @@ using System.Windows;
 using System.Windows.Threading;
 using Lumen.App.Dialogs;
 using Lumen.App.Infrastructure;
+using Lumen.App.Localization;
+using Lumen.App.Remediation;
 using Lumen.App.Services;
 using Lumen.Core.Models;
 using Lumen.Core.Quarantine;
@@ -12,12 +14,74 @@ using Lumen.Core.Util;
 
 namespace Lumen.App.ViewModels;
 
-public sealed class ScanViewModel : ObservableObject, IPageViewModel
+/// <summary>
+/// One of the four scan scopes, shown as a choice card.
+/// </summary>
+public sealed class ScanScopeOptionViewModel : ObservableObject
+{
+    private readonly Action<ScanScopeKind> _select;
+    private bool _isSelected;
+
+    /// <summary>Creates a scope option.</summary>
+    public ScanScopeOptionViewModel(
+        ScanScopeKind scope,
+        string title,
+        string body,
+        string glyph,
+        string automationName,
+        Action<ScanScopeKind> select)
+    {
+        Scope = scope;
+        Title = title;
+        Body = body;
+        Glyph = glyph;
+        AutomationName = automationName;
+        _select = select;
+    }
+
+    /// <summary>The scope this card stands for.</summary>
+    public ScanScopeKind Scope { get; }
+
+    /// <summary>The card title.</summary>
+    public string Title { get; }
+
+    /// <summary>The one-line explanation under the title.</summary>
+    public string Body { get; }
+
+    /// <summary>The icon glyph.</summary>
+    public string Glyph { get; }
+
+    /// <summary>The accessible name of the card.</summary>
+    public string AutomationName { get; }
+
+    /// <summary>True when this scope is the selected one.</summary>
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (!SetProperty(ref _isSelected, value)) return;
+            if (value) _select(Scope);
+        }
+    }
+
+    /// <summary>Rebuilds the wording after the interface language changed.</summary>
+    public void Refresh()
+    {
+        OnPropertyChanged(nameof(Title), nameof(Body), nameof(AutomationName));
+    }
+}
+
+/// <summary>
+/// The scan page: scope selection, the live progress strip and the results.
+/// </summary>
+public sealed class ScanViewModel : ObservableObject, IPageViewModel, IDisposable
 {
     private const int MaxDetailsInConfirm = 8;
     private const int MaxFailedDetails = 12;
 
     private readonly AppServices _services;
+    private readonly RemediationCoordinator _remediation;
     private readonly DispatcherTimer _timer;
     private readonly Stopwatch _stopwatch = new();
     private readonly HashSet<string> _detectionPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -29,12 +93,11 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
     private bool _isCancelling;
     private bool _isQuarantining;
     private bool _hasCompleted;
-    private bool _wasCancelled;
     private long _filesScanned;
     private long _filesSkipped;
     private long _errorCount;
     private long _detectionCount;
-    private string _phaseText = "Ready when you are";
+    private string _phaseText = string.Empty;
     private string _currentFileDisplay = string.Empty;
     private string _elapsedText = "0s";
     private bool _isErrorsExpanded;
@@ -50,10 +113,20 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
     private MessageSeverity _actionSeverity = MessageSeverity.Info;
     private CancellationTokenSource? _cts;
     private string? _lastScanId;
+    private bool _isRemediationEnabled;
+    private bool _updatingScopeSelection;
 
+    private double _quarantineProgress;
+    private string _quarantineCurrentFile = string.Empty;
+    private long _quarantineTotalBytes;
+    private long _quarantineCompletedBytes;
+    private bool _disposed;
+
+    /// <summary>Creates the scan view model.</summary>
     public ScanViewModel(AppServices services)
     {
         _services = services;
+        _remediation = new RemediationCoordinator(services);
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _timer.Tick += (_, _) =>
         {
@@ -66,6 +139,9 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         QuarantineSelectedCommand = new AsyncRelayCommand(
             QuarantineSelectedAsync,
             () => HasSelection && !IsScanning && !IsQuarantining);
+        CleanSelectedCommand = new AsyncRelayCommand(
+            CleanSelectedAsync,
+            () => HasSelection && IsRemediationEnabled && !IsScanning && !IsQuarantining);
         ToggleErrorsCommand = new RelayCommand(
             () => IsErrorsExpanded = !IsErrorsExpanded,
             () => Errors.Count > 0);
@@ -73,15 +149,65 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         RevealSelectedCommand = new RelayCommand(RevealSelected, () => SelectedDetection is not null);
         ClearResultsCommand = new RelayCommand(ClearResults, () => HasCompleted && !IsScanning && !IsQuarantining);
         DismissActionCommand = new RelayCommand(() => HasAction = false);
+
+        ScopeOptions =
+        [
+            new ScanScopeOptionViewModel(
+                ScanScopeKind.Quick,
+                Text.ScanScopeQuickTitle,
+                Text.ScanScopeQuickBody,
+                "\uE721",
+                Text.ScanScopeQuickName,
+                SelectScopeFromOption),
+            new ScanScopeOptionViewModel(
+                ScanScopeKind.FullUserProfile,
+                Text.ScanScopeFullTitle,
+                Text.ScanScopeFullBody,
+                "\uE77B",
+                Text.ScanScopeFullName,
+                SelectScopeFromOption),
+            new ScanScopeOptionViewModel(
+                ScanScopeKind.Folder,
+                Text.ScanScopeFolderTitle,
+                Text.ScanScopeFolderBody,
+                "\uE8B7",
+                Text.ScanScopeFolderName,
+                SelectScopeFromOption),
+            new ScanScopeOptionViewModel(
+                ScanScopeKind.File,
+                Text.ScanScopeFileTitle,
+                Text.ScanScopeFileBody,
+                "\uE7C3",
+                Text.ScanScopeFileName,
+                SelectScopeFromOption)
+        ];
+
+        _phaseText = Text.ScanPhaseReady;
+        _isRemediationEnabled = services.Settings.RemediationEnabled;
+
+        services.SettingsChanged += OnServicesSettingsChanged;
+        Text.LanguageChanged += OnLanguageChanged;
+
+        UpdateScopeSelection();
     }
 
     public ObservableCollection<DetectionItemViewModel> Detections { get; } = [];
     public ObservableCollection<ScanErrorItemViewModel> Errors { get; } = [];
 
+    /// <summary>The four scope cards, rendered from one reusable template.</summary>
+    public ObservableCollection<ScanScopeOptionViewModel> ScopeOptions { get; }
+
     public AsyncRelayCommand StartScanCommand { get; }
     public RelayCommand CancelScanCommand { get; }
     public RelayCommand BrowseCommand { get; }
     public AsyncRelayCommand QuarantineSelectedCommand { get; }
+
+    /// <summary>
+    /// Cleans up the selected findings. It is only enabled when the user allowed
+    /// remediation actions in Settings, and even then it only produces a plan.
+    /// </summary>
+    public AsyncRelayCommand CleanSelectedCommand { get; }
+
     public RelayCommand ToggleErrorsCommand { get; }
     public RelayCommand CopySelectedPathCommand { get; }
     public RelayCommand RevealSelectedCommand { get; }
@@ -96,12 +222,11 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
             if (!SetProperty(ref _scope, value)) return;
             OnPropertyChanged(
                 nameof(IsCustomScope),
-                nameof(CustomScopeLabel),
                 nameof(SelectedPathDisplay),
-                nameof(ScopeHeadline),
                 nameof(ScopeDescription),
                 nameof(CanStartScan),
                 nameof(CanBrowse));
+            UpdateScopeSelection();
             RaiseCommandStates();
         }
     }
@@ -126,39 +251,27 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         }
     }
 
+    /// <summary>True when the scope is a folder or a single file.</summary>
     public bool IsCustomScope => Scope is ScanScopeKind.Folder or ScanScopeKind.File;
-
-    public string CustomScopeLabel => Scope == ScanScopeKind.File ? "File to scan" : "Folder to scan";
 
     public string SelectedPathDisplay => Scope switch
     {
-        ScanScopeKind.Quick => "Desktop, Documents and Downloads",
-        ScanScopeKind.FullUserProfile => "Your user profile \u2014 app data, caches and Lumen's vault are excluded",
+        ScanScopeKind.Quick => Text.ScanPathQuick,
+        ScanScopeKind.FullUserProfile => Text.ScanPathFull,
         ScanScopeKind.Folder => string.IsNullOrWhiteSpace(SelectedFolder)
-            ? "No folder selected yet"
+            ? Text.ScanPathNoFolder
             : Presentation.SanitizePath(SelectedFolder),
         _ => string.IsNullOrWhiteSpace(SelectedFile)
-            ? "No file selected yet"
+            ? Text.ScanPathNoFile
             : Presentation.SanitizePath(SelectedFile)
-    };
-
-    public string ScopeHeadline => Scope switch
-    {
-        ScanScopeKind.Quick => "Quick scan",
-        ScanScopeKind.FullUserProfile => "Full profile scan",
-        ScanScopeKind.Folder => "Folder scan",
-        _ => "Single-file scan"
     };
 
     public string ScopeDescription => Scope switch
     {
-        ScanScopeKind.Quick =>
-            "Checks Desktop, Documents and Downloads with Lumen's small set of transparent rules.",
-        ScanScopeKind.FullUserProfile =>
-            "Walks your user profile while skipping AppData, caches, reparse points and Lumen's own data.",
-        ScanScopeKind.Folder =>
-            "Checks one folder you choose. Links and cloud placeholders are skipped, never followed.",
-        _ => "Checks one file you choose. Nothing is uploaded, changed or removed."
+        ScanScopeKind.Quick => Text.ScanScopeQuickDescription,
+        ScanScopeKind.FullUserProfile => Text.ScanScopeFullDescription,
+        ScanScopeKind.Folder => Text.ScanScopeFolderDescription,
+        _ => Text.ScanScopeFileDescription
     };
 
     public bool IsScanning
@@ -193,7 +306,7 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         private set
         {
             if (!SetProperty(ref _isQuarantining, value)) return;
-            OnPropertyChanged(nameof(CanStartScan), nameof(CanBrowse));
+            OnPropertyChanged(nameof(CanStartScan), nameof(CanBrowse), nameof(HasQuarantineProgress));
             RaiseCommandStates();
         }
     }
@@ -207,8 +320,8 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
 
     public bool CanBrowse => IsCustomScope && !IsScanning && !IsQuarantining;
 
-    public string ScanButtonText => IsScanning ? "Scanning\u2026" : "Start scan";
-    public string CancelButtonText => IsCancelling ? "Cancelling\u2026" : "Cancel scan";
+    public string ScanButtonText => IsScanning ? Text.ScanRunning : Text.ScanStart;
+    public string CancelButtonText => IsCancelling ? Text.ScanCancelling : Text.ScanCancel;
 
     public long FilesScanned
     {
@@ -221,6 +334,10 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
 
     public string FilesScannedText => _filesScanned.ToString("N0");
 
+    /// <summary>
+    /// The files that were deliberately not inspected, for example because they were
+    /// links, cloud placeholders or outside the inspected prefix.
+    /// </summary>
     public long FilesSkipped
     {
         get => _filesSkipped;
@@ -232,6 +349,7 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
 
     public string FilesSkippedText => _filesSkipped.ToString("N0");
 
+    /// <summary>The items that could not be inspected at all.</summary>
     public long ErrorCount
     {
         get => _errorCount;
@@ -258,16 +376,18 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
     }
 
     public string DetectionCountText => _detectionCount.ToString("N0");
-    public string FindingsCaption => _detectionCount == 1 ? "finding" : "findings";
+    public string FindingsCaption => Text.FindingCaption(_detectionCount);
     public bool HasFindings => _detectionCount > 0;
     public bool HasNoFindings => HasCompleted && _detectionCount == 0;
 
+    /// <summary>The phase of the running scan.</summary>
     public string PhaseText
     {
         get => _phaseText;
         private set => SetProperty(ref _phaseText, value);
     }
 
+    /// <summary>The file that is being inspected right now.</summary>
     public string CurrentFileDisplay
     {
         get => _currentFileDisplay;
@@ -291,12 +411,6 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         }
     }
 
-    public bool WasCancelled
-    {
-        get => _wasCancelled;
-        private set => SetProperty(ref _wasCancelled, value);
-    }
-
     public bool IsErrorsExpanded
     {
         get => _isErrorsExpanded;
@@ -308,8 +422,8 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
     }
 
     public string ErrorsToggleText => IsErrorsExpanded
-        ? "Hide skipped items"
-        : $"Show {Errors.Count:N0} skipped item(s)";
+        ? Text.ScanHideSkipped
+        : Text.ScanShowSkipped(Errors.Count);
 
     public DetectionItemViewModel? SelectedDetection
     {
@@ -327,11 +441,27 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
 
     public bool HasSelection => Detections.Any(item => item.IsSelected);
     public int SelectedCount => Detections.Count(item => item.IsSelected);
-    public string QuarantineButtonText => SelectedCount == 0
-        ? "Quarantine selected"
-        : SelectedCount == 1
-            ? "Quarantine 1 file"
-            : $"Quarantine {SelectedCount} files";
+
+    public string QuarantineButtonText => SelectedCount switch
+    {
+        0 => Text.ScanQuarantineNone,
+        1 => Text.ScanQuarantineOne,
+        _ => Text.ScanQuarantineMany(SelectedCount)
+    };
+
+    /// <summary>
+    /// True when the user allowed remediation actions. The Clean action stays disabled
+    /// while it is off.
+    /// </summary>
+    public bool IsRemediationEnabled
+    {
+        get => _isRemediationEnabled;
+        private set
+        {
+            if (!SetProperty(ref _isRemediationEnabled, value)) return;
+            RaiseCommandStates();
+        }
+    }
 
     public bool AreAllSelected
     {
@@ -403,6 +533,35 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         private set => SetProperty(ref _actionSeverity, value);
     }
 
+    // ----------------------------------------------------------------------
+    // Quarantine progress
+    // ----------------------------------------------------------------------
+
+    /// <summary>True while files are being encrypted into the vault.</summary>
+    public bool HasQuarantineProgress => IsQuarantining;
+
+    /// <summary>The determinate progress of the running quarantine, from 0 to 1.</summary>
+    public double QuarantineProgress
+    {
+        get => _quarantineProgress;
+        private set => SetProperty(ref _quarantineProgress, value);
+    }
+
+    /// <summary>The file that is being encrypted right now.</summary>
+    public string QuarantineCurrentFile
+    {
+        get => _quarantineCurrentFile;
+        private set => SetProperty(ref _quarantineCurrentFile, value);
+    }
+
+    /// <summary>The progress of the running quarantine, as a percentage.</summary>
+    public string QuarantineProgressText
+    {
+        get => _quarantineTotalBytes <= 0
+            ? string.Empty
+            : (QuarantineProgress * 100).ToString("N0") + "%";
+    }
+
     public void OnNavigatedTo()
     {
         // Scan state intentionally survives navigation so a running scan is never lost.
@@ -415,7 +574,7 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         if (!IsScanning || IsCancelling) return;
 
         IsCancelling = true;
-        PhaseText = "Cancelling\u2026";
+        PhaseText = Text.ScanPhaseCancelling;
         try
         {
             _cts?.Cancel();
@@ -423,6 +582,25 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         catch (ObjectDisposedException)
         {
             // The scan finished at the same moment.
+        }
+    }
+
+    private void SelectScopeFromOption(ScanScopeKind scope)
+    {
+        if (_updatingScopeSelection) return;
+        if (Scope != scope) Scope = scope;
+    }
+
+    private void UpdateScopeSelection()
+    {
+        _updatingScopeSelection = true;
+        try
+        {
+            foreach (var option in ScopeOptions) option.IsSelected = option.Scope == Scope;
+        }
+        finally
+        {
+            _updatingScopeSelection = false;
         }
     }
 
@@ -442,7 +620,7 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         if (Scope == ScanScopeKind.Folder)
         {
             var folder = _services.Dialogs.PickFolder(
-                "Choose a folder to scan",
+                Text.ScanScopeFolderName,
                 SelectedFolder ?? _services.UserProfile);
             if (!string.IsNullOrWhiteSpace(folder)) SelectedFolder = folder;
             return;
@@ -451,7 +629,7 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         var startFolder = SelectedFile is not null
             ? Path.GetDirectoryName(SelectedFile)
             : _services.UserProfile;
-        var file = _services.Dialogs.PickFile("Choose a file to scan", startFolder);
+        var file = _services.Dialogs.PickFile(Text.ScanScopeFileName, startFolder);
         if (!string.IsNullOrWhiteSpace(file)) SelectedFile = file;
     }
 
@@ -478,15 +656,15 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         }
         catch (ArgumentException ex)
         {
-            _services.Dialogs.ShowMessage("Choose a scan location", ex.Message, MessageSeverity.Warning);
+            _services.Dialogs.ShowMessage(Text.ScanChooseLocation, ex.Message, MessageSeverity.Warning);
             return;
         }
 
         if (request.Roots.Count == 0)
         {
             _services.Dialogs.ShowMessage(
-                "No standard folders found",
-                "None of the usual quick-scan folders exist for this account. Choose a folder instead.",
+                Text.ScanNoStandardFolders,
+                Text.ScanNoStandardFoldersBody,
                 MessageSeverity.Info);
             Scope = ScanScopeKind.Folder;
             Browse();
@@ -497,13 +675,11 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         if (critical is not null)
         {
             var proceed = _services.Dialogs.Confirm(
-                "Scan a protected system location?",
-                "Lumen would normally never scan Windows, Program Files or a drive root. " +
-                "This scan is read-only, but many files will return access-denied results. " +
-                "Lumen does not bypass Windows permissions. Only continue if you have a specific reason.",
-                "Scan anyway",
+                Text.ScanProtectedLocationTitle,
+                Text.ScanProtectedLocationBody,
+                Text.ScanProtectedLocationConfirm,
                 danger: true,
-                details: "Location: " + Presentation.SanitizePath(critical));
+                details: Text.ScanLocationPrefix + Presentation.SanitizePath(critical));
             if (!proceed) return;
         }
 
@@ -511,11 +687,10 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         if (network is not null)
         {
             var proceed = _services.Dialogs.Confirm(
-                "Scan a network location?",
-                "Scanning a network share can be slow and may be logged by the remote computer. " +
-                "Lumen reads files directly from this device and does not upload anything.",
-                "Scan network location",
-                details: "Location: " + Presentation.SanitizePath(network));
+                Text.ScanNetworkLocationTitle,
+                Text.ScanNetworkLocationBody,
+                Text.ScanNetworkLocationConfirm,
+                details: Text.ScanLocationPrefix + Presentation.SanitizePath(network));
             if (!proceed) return;
         }
 
@@ -524,12 +699,11 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         IsCancelling = false;
         IsQuarantining = false;
         HasCompleted = false;
-        WasCancelled = false;
-        PhaseText = "Preparing scan\u2026";
-        CurrentFileDisplay = "Waiting for the first file\u2026";
+        PhaseText = Text.ScanPhasePreparing;
+        CurrentFileDisplay = Text.ScanWaitingForFile;
         _stopwatch.Restart();
         _timer.Start();
-        _services.Tray?.SetStatus("scanning\u2026");
+        _services.Tray?.SetStatus("scanning…");
         _cts = new CancellationTokenSource();
 
         try
@@ -540,11 +714,10 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         }
         catch (OperationCanceledException)
         {
-            WasCancelled = true;
             HasCompleted = true;
-            PhaseText = "Cancelled";
-            SummaryTitle = "Scan cancelled";
-            SummaryMessage = "The scan stopped before finishing. Partial results, if any, are shown. No files were changed.";
+            PhaseText = Text.ScanPhaseCancelled;
+            SummaryTitle = Text.ScanSummaryCancelled;
+            SummaryMessage = Text.ScanSummaryCancelledBody;
             SummarySeverity = MessageSeverity.Warning;
             HasSummary = true;
         }
@@ -552,9 +725,9 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         {
             _services.Log.Error("Scan", "The scan could not be completed.", ex);
             HasCompleted = true;
-            PhaseText = "Scan failed";
-            SummaryTitle = "The scan could not be completed";
-            SummaryMessage = "An unexpected error stopped the scan. No files were changed. Details were written to the local log.";
+            PhaseText = Text.ScanPhaseFailed;
+            SummaryTitle = Text.ScanSummaryFailed;
+            SummaryMessage = Text.ScanSummaryFailedBody;
             SummarySeverity = MessageSeverity.Danger;
             HasSummary = true;
         }
@@ -580,12 +753,12 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         ElapsedText = TimeFormatter.Duration(progress.Elapsed);
         PhaseText = progress.Phase switch
         {
-            ScanPhase.Enumerating => "Finding files\u2026",
-            ScanPhase.Inspecting => "Inspecting files\u2026",
-            _ => "Finishing\u2026"
+            ScanPhase.Enumerating => Text.ScanPhaseEnumerating,
+            ScanPhase.Inspecting => Text.ScanPhaseInspecting,
+            _ => Text.ScanPhaseFinishing
         };
         CurrentFileDisplay = string.IsNullOrWhiteSpace(progress.CurrentFile)
-            ? "Preparing the file list\u2026"
+            ? Text.ScanPhasePreparingList
             : Presentation.SanitizePath(progress.CurrentFile);
 
         foreach (var detection in progress.NewDetections) AddDetection(detection);
@@ -601,6 +774,22 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
 
         if (SelectedDetection is null) SelectedDetection = item;
         RaiseSelectionProperties();
+
+        RaiseAlert(detection);
+    }
+
+    /// <summary>
+    /// Raises the loud detection alert. It is only raised for a real detection, never
+    /// for a clean scan.
+    /// </summary>
+    private void RaiseAlert(ScanDetection detection)
+    {
+        var primary = detection.PrimaryFinding;
+        _services.Alerts.Show(
+            detection,
+            detection.FileName,
+            primary?.Title ?? Text.FindingCaption(1),
+            Presentation.ConfidenceText(primary?.Confidence ?? Confidence.Low));
     }
 
     private void OnDetectionPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -617,6 +806,7 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
             nameof(AreAllSelected),
             nameof(QuarantineButtonText));
         QuarantineSelectedCommand.RaiseCanExecuteChanged();
+        CleanSelectedCommand.RaiseCanExecuteChanged();
     }
 
     private void ApplyOutcome(ScanOutcome outcome)
@@ -626,7 +816,6 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         ErrorCount = outcome.ErrorCount;
         DetectionCount = outcome.Detections.Count;
         ElapsedText = TimeFormatter.Duration(outcome.Duration);
-        WasCancelled = outcome.Cancelled;
         HasCompleted = true;
         _lastScanId = outcome.ScanId;
 
@@ -648,39 +837,33 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         ToggleErrorsCommand.RaiseCanExecuteChanged();
         if (Errors.Count == 0) IsErrorsExpanded = false;
 
-        PhaseText = outcome.Cancelled ? "Cancelled" : "Scan complete";
+        PhaseText = outcome.Cancelled ? Text.ScanPhaseCancelled : Text.ScanPhaseComplete;
         CurrentFileDisplay = string.Empty;
 
         if (outcome.Cancelled)
         {
-            SummaryTitle = "Scan cancelled";
-            SummaryMessage =
-                "The scan stopped early. Results collected before cancellation are shown. " +
-                "No files were changed, and nothing is quarantined until you choose it.";
+            SummaryTitle = Text.ScanSummaryCancelled;
+            SummaryMessage = Text.ScanSummaryCancelledBody;
             SummarySeverity = MessageSeverity.Warning;
         }
         else if (outcome.HasFindings)
         {
-            SummaryTitle = Presentation.Count(outcome.Detections.Count, "potential issue") + " found";
+            SummaryTitle = Text.ScanSummaryFound(outcome.Detections.Count);
             SummaryMessage = outcome.ErrorCount > 0
-                ? "Review each finding before deciding what to quarantine. Some items could not be inspected, so this result is incomplete."
-                : "Lumen has not changed or removed anything. Review the findings and quarantine only what you understand.";
+                ? Text.ScanSummaryFoundBody
+                : Text.ScanSummaryFoundCleanBody;
             SummarySeverity = MessageSeverity.Warning;
         }
         else if (outcome.ErrorCount > 0)
         {
-            SummaryTitle = "Scan completed with warnings";
-            SummaryMessage =
-                "No matches for Lumen's limited rules were found, but some files could not be inspected. " +
-                "This does not prove the uninspected files are safe.";
+            SummaryTitle = Text.ScanSummaryWarnings;
+            SummaryMessage = Text.ScanSummaryWarningsBody;
             SummarySeverity = MessageSeverity.Warning;
         }
         else
         {
-            SummaryTitle = "No matches found";
-            SummaryMessage =
-                "No matches for Lumen's limited rules (EICAR, script heuristics and deceptive file names). " +
-                "This does not prove the files are safe. Keep Microsoft Defender enabled.";
+            SummaryTitle = Text.ScanSummaryClean;
+            SummaryMessage = Text.ScanSummaryCleanBody;
             SummarySeverity = MessageSeverity.Success;
         }
 
@@ -706,8 +889,8 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         if (!saved.Ok)
         {
             SetAction(
-                "Scan history could not be saved",
-                saved.Message ?? "The result is shown here, but it may not appear in History.",
+                Text.ScanHistorySaveFailedTitle,
+                saved.Message ?? Text.ScanHistorySaveFailedBody,
                 MessageSeverity.Warning);
         }
 
@@ -756,9 +939,10 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         ActionTitle = string.Empty;
         ActionMessage = string.Empty;
         HasCompleted = false;
-        WasCancelled = false;
-        PhaseText = "Ready when you are";
+        PhaseText = Text.ScanPhaseReady;
         CurrentFileDisplay = string.Empty;
+        QuarantineProgress = 0;
+        QuarantineCurrentFile = string.Empty;
         RaiseSelectionProperties();
         OnPropertyChanged(nameof(ErrorsToggleText), nameof(HasErrors), nameof(Errors));
         ToggleErrorsCommand.RaiseCanExecuteChanged();
@@ -775,22 +959,24 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
             Environment.NewLine,
             items.Take(MaxDetailsInConfirm).Select(item => item.FilePath));
         if (items.Length > MaxDetailsInConfirm)
-            details += Environment.NewLine + $"\u2026and {items.Length - MaxDetailsInConfirm} more";
+            details += Environment.NewLine + Text.ScanAndMore(items.Length - MaxDetailsInConfirm);
 
         var proceed = _services.Dialogs.Confirm(
-            "Quarantine selected files?",
-            $"Lumen will copy {Presentation.Count(items.Length, "file")} into the encrypted quarantine vault, " +
-            "verify the encrypted copy, and then remove the original. You can restore each file later. " +
-            "Files are never uploaded.",
-            items.Length == 1 ? "Quarantine file" : $"Quarantine {items.Length} files",
+            Text.ScanQuarantineTitle,
+            Text.ScanQuarantineBody,
+            items.Length == 1 ? Text.ScanQuarantineConfirmOne : Text.ScanQuarantineConfirmMany(items.Length),
             danger: true,
             details: details);
         if (!proceed) return;
 
         IsQuarantining = true;
+        _quarantineTotalBytes = items.Sum(item => Math.Max(0, item.Source.SizeBytes));
+        _quarantineCompletedBytes = 0;
+        QuarantineProgress = 0;
+        QuarantineCurrentFile = string.Empty;
         SetAction(
-            "Quarantining files",
-            $"Encrypting {Presentation.Count(items.Length, "file")}. Keep Lumen open until this finishes.",
+            Text.ScanQuarantineRunningTitle,
+            Text.ScanQuarantineRunningBody(items.Length),
             MessageSeverity.Info);
 
         var quarantined = 0;
@@ -814,33 +1000,51 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
                     DetectedUtc = item.Source.DetectedUtc
                 };
 
+                QuarantineCurrentFile = item.FileName;
+                OnPropertyChanged(nameof(QuarantineProgressText));
+
+                var size = Math.Max(0, item.Source.SizeBytes);
+                var progress = new Progress<long>(copied =>
+                {
+                    var done = Math.Min(size, Math.Max(0, copied));
+                    QuarantineProgress = _quarantineTotalBytes <= 0
+                        ? 0
+                        : Math.Clamp((_quarantineCompletedBytes + done) / (double)_quarantineTotalBytes, 0, 1);
+                    OnPropertyChanged(nameof(QuarantineProgressText));
+                });
+
                 var result = await _services.Quarantine.QuarantineAsync(
                     request,
-                    null,
+                    progress,
                     CancellationToken.None);
 
                 if (result.Status == QuarantineStatus.ChangedSinceScan)
                 {
                     var allow = _services.Dialogs.Confirm(
-                        "This file changed since the scan",
-                        $"\"{item.FileName}\" no longer matches the content Lumen inspected. " +
-                        "Quarantining now would preserve the unreviewed current content. " +
-                        "Do you want to quarantine the current content anyway?",
-                        "Quarantine current content",
+                        Text.ScanChangedTitle,
+                        Text.ScanChangedBody,
+                        Text.ScanChangedConfirm,
                         danger: true,
-                        details: "Path: " + item.FilePath);
+                        details: Text.ScanLocationPrefix + item.FilePath);
                     if (!allow)
                     {
                         skipped++;
+                        _quarantineCompletedBytes += size;
                         continue;
                     }
 
                     request = request with { AllowChangedFile = true };
                     result = await _services.Quarantine.QuarantineAsync(
                         request,
-                        null,
+                        progress,
                         CancellationToken.None);
                 }
+
+                _quarantineCompletedBytes += size;
+                QuarantineProgress = _quarantineTotalBytes <= 0
+                    ? 1
+                    : Math.Clamp(_quarantineCompletedBytes / (double)_quarantineTotalBytes, 0, 1);
+                OnPropertyChanged(nameof(QuarantineProgressText));
 
                 switch (result.Status)
                 {
@@ -869,55 +1073,84 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         finally
         {
             IsQuarantining = false;
+            QuarantineCurrentFile = string.Empty;
         }
 
         RaiseSelectionProperties();
 
         if (failures.Count == 0 && skipped == 0)
         {
-            var message = Presentation.Count(quarantined, "file") + " moved into the encrypted vault.";
-            if (retained > 0)
-            {
-                message += " " + Presentation.Count(retained, "encrypted copy", "encrypted copies") +
-                           " was preserved, but the original could not be removed. Close any program using it and delete it manually.";
-            }
+            var message = Text.ScanQuarantineDoneBody(quarantined);
+            if (retained > 0) message += " " + Text.ScanQuarantineRetainedBody(retained);
 
-            SetAction("Quarantine finished", message, retained > 0 ? MessageSeverity.Warning : MessageSeverity.Success);
+            SetAction(Text.ScanQuarantineDoneTitle, message, retained > 0 ? MessageSeverity.Warning : MessageSeverity.Success);
         }
         else
         {
-            var message = $"{Presentation.Count(quarantined, "file")} quarantined";
-            if (skipped > 0) message += $", {skipped} skipped";
-            if (failures.Count > 0) message += $", {failures.Count} failed";
-            message += ". Originals were kept for every item that was not quarantined.";
+            var message = Text.ScanQuarantineWarnBody(quarantined, skipped, failures.Count);
 
-            SetAction("Quarantine finished with warnings", message, MessageSeverity.Warning);
+            SetAction(Text.ScanQuarantineWarnTitle, message, MessageSeverity.Warning);
 
             if (failures.Count > 0 || retainedNames.Count > 0)
             {
                 var failureDetails = new List<string>();
                 if (retainedNames.Count > 0)
                 {
-                    failureDetails.Add("Encrypted copy created, original still present:");
-                    failureDetails.AddRange(retainedNames.Select(name => "  \u2022 " + name));
+                    failureDetails.Add(Text.ScanRetainedDetail);
+                    failureDetails.AddRange(retainedNames.Select(name => "  • " + name));
                 }
 
                 if (failures.Count > 0)
                 {
                     if (failureDetails.Count > 0) failureDetails.Add(string.Empty);
-                    failureDetails.Add("Could not be quarantined:");
-                    failureDetails.AddRange(failures.Take(MaxFailedDetails).Select(failure => "  \u2022 " + failure));
+                    failureDetails.Add(Text.ScanFailedDetail);
+                    failureDetails.AddRange(failures.Take(MaxFailedDetails).Select(failure => "  • " + failure));
                     if (failures.Count > MaxFailedDetails)
-                        failureDetails.Add($"  \u2026and {failures.Count - MaxFailedDetails} more. See the local log.");
+                        failureDetails.Add("  " + Text.ScanAndMore(failures.Count - MaxFailedDetails));
                 }
 
                 _services.Dialogs.ShowMessage(
-                    "Quarantine results",
+                    Text.ScanQuarantineResultsTitle,
                     message,
                     MessageSeverity.Warning,
                     string.Join(Environment.NewLine, failureDetails));
             }
         }
+
+        _services.NotifyDataChanged();
+    }
+
+    /// <summary>
+    /// Cleans up the selected findings. The flow is plan, then review, then confirm,
+    /// then execute: nothing is stopped and nothing is deleted before the user has
+    /// confirmed the plan.
+    /// </summary>
+    private async Task CleanSelectedAsync()
+    {
+        if (IsScanning || IsQuarantining) return;
+        if (!IsRemediationEnabled) return;
+
+        var items = Detections.Where(item => item.IsSelected).ToArray();
+        if (items.Length == 0) return;
+
+        var ran = false;
+        foreach (var item in items)
+        {
+            var target = new RemediationTarget
+            {
+                FilePath = item.Source.FilePath,
+                Sha256 = item.Source.Sha256,
+                SizeBytes = item.Source.SizeBytes,
+                FindingTitle = item.Title,
+                FindingDetail = item.Detail
+            };
+
+            var executed = await _remediation.RunAsync(target, CancellationToken.None);
+            if (!executed) break;
+            ran = true;
+        }
+
+        if (!ran) return;
 
         _services.NotifyDataChanged();
     }
@@ -929,12 +1162,12 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         try
         {
             Clipboard.SetText(SelectedDetection.Source.FilePath);
-            SetAction("Path copied", "The full file path was copied to the clipboard.", MessageSeverity.Info);
+            SetAction(Text.ScanPathCopiedTitle, Text.ScanPathCopiedBody, MessageSeverity.Info);
         }
         catch (Exception ex)
         {
             _services.Log.Warn("Shell", "The file path could not be copied.", ex);
-            SetAction("Could not copy the path", "The clipboard is unavailable right now.", MessageSeverity.Warning);
+            SetAction(Text.ScanPathCopyFailedTitle, Text.ScanPathCopyFailedBody, MessageSeverity.Warning);
         }
     }
 
@@ -945,8 +1178,8 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         if (!_services.RevealFile(SelectedDetection.Source.FilePath))
         {
             _services.Dialogs.ShowMessage(
-                "File not found",
-                "That file is no longer at its original location. If you quarantined it, use the Quarantine page to restore it.",
+                Text.ScanFileNotFoundTitle,
+                Text.ScanFileNotFoundBody,
                 MessageSeverity.Info);
         }
     }
@@ -974,17 +1207,39 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         if (windowIsActive) return;
 
         var title = outcome.Cancelled
-            ? "Scan cancelled"
+            ? Text.ScanTrayCancelled
             : outcome.HasFindings
-                ? "Scan complete \u2014 review needed"
-                : "Scan complete";
+                ? Text.ScanTrayReview
+                : Text.ScanTrayComplete;
         var message = outcome.Cancelled
-            ? "The scan stopped early. Open Lumen to review partial results."
+            ? Text.ScanTrayCancelledBody
             : outcome.HasFindings
-                ? $"{Presentation.Count(outcome.Detections.Count, "potential issue")} found. Nothing was changed."
-                : "No matches for Lumen's limited rules. Open Lumen for details.";
+                ? Text.ScanTrayFoundBody(outcome.Detections.Count)
+                : Text.ScanTrayCleanBody;
 
         _services.Tray.Notify(title, message);
+    }
+
+    private void OnServicesSettingsChanged(object? sender, EventArgs e)
+    {
+        IsRemediationEnabled = _services.Settings.RemediationEnabled;
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(
+            nameof(PhaseText),
+            nameof(ScanButtonText),
+            nameof(CancelButtonText),
+            nameof(ScopeDescription),
+            nameof(SelectedPathDisplay),
+            nameof(ErrorsToggleText),
+            nameof(QuarantineButtonText),
+            nameof(FindingsCaption),
+            nameof(QuarantineProgressText));
+
+        foreach (var option in ScopeOptions) option.Refresh();
+        UpdateScopeSelection();
     }
 
     private void RaiseCommandStates()
@@ -993,8 +1248,20 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel
         CancelScanCommand.RaiseCanExecuteChanged();
         BrowseCommand.RaiseCanExecuteChanged();
         QuarantineSelectedCommand.RaiseCanExecuteChanged();
+        CleanSelectedCommand.RaiseCanExecuteChanged();
         ClearResultsCommand.RaiseCanExecuteChanged();
     }
 
+    /// <summary>True when at least one item could not be inspected.</summary>
     public bool HasErrors => Errors.Count > 0;
+
+    /// <summary>Unsubscribes from the events this view model listens to.</summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _timer.Stop();
+        _services.SettingsChanged -= OnServicesSettingsChanged;
+        Text.LanguageChanged -= OnLanguageChanged;
+    }
 }

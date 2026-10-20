@@ -19,10 +19,33 @@ public sealed class AppPaths
     public string LogDirectory => Path.Combine(Root, "logs");
     public string LogFile => Path.Combine(LogDirectory, "lumen.log");
 
-    public static AppPaths ForCurrentUser() =>
-        new(Path.Combine(
+    /// <summary>
+    /// The per-user data folder.
+    ///
+    /// Set the <c>LUMEN_DATA_DIR</c> environment variable to put Lumen's data somewhere
+    /// else entirely. That is how the sandbox mode works: point it at a folder inside
+    /// the project, and deleting that folder removes every trace of a test run.
+    /// </summary>
+    public static AppPaths ForCurrentUser()
+    {
+        var overridePath = Environment.GetEnvironmentVariable("LUMEN_DATA_DIR");
+        if (!string.IsNullOrWhiteSpace(overridePath))
+        {
+            try
+            {
+                return new AppPaths(Path.GetFullPath(overridePath.Trim()));
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                // An unusable override falls back to the normal location rather than
+                // refusing to start.
+            }
+        }
+
+        return new AppPaths(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Lumen"));
+    }
 
     public void EnsureCreated()
     {

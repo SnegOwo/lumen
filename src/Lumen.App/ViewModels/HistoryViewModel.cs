@@ -1,13 +1,18 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using Lumen.App.Dialogs;
 using Lumen.App.Infrastructure;
+using Lumen.App.Localization;
 using Lumen.App.Services;
 using Lumen.Core.Models;
 using Lumen.Core.Util;
 
 namespace Lumen.App.ViewModels;
 
-public sealed class HistoryViewModel : ObservableObject, IPageViewModel
+/// <summary>
+/// The history page: the scans that were recorded on this device.
+/// </summary>
+public sealed class HistoryViewModel : ObservableObject, IPageViewModel, IDisposable
 {
     private readonly AppServices _services;
     private readonly Action _startQuickScan;
@@ -24,7 +29,9 @@ public sealed class HistoryViewModel : ObservableObject, IPageViewModel
     private string _detailCounts = string.Empty;
     private string _detailDuration = string.Empty;
     private string _detailRoots = string.Empty;
+    private bool _disposed;
 
+    /// <summary>Creates the history view model.</summary>
     public HistoryViewModel(AppServices services, Action startQuickScan)
     {
         _services = services;
@@ -35,6 +42,8 @@ public sealed class HistoryViewModel : ObservableObject, IPageViewModel
         StartQuickScanCommand = new RelayCommand(() => _startQuickScan());
         RefreshCommand = new RelayCommand(Refresh);
         LoadWarning = services.HistoryStore.LoadWarning;
+
+        Text.LanguageChanged += OnLanguageChanged;
     }
 
     public ObservableCollection<HistoryRowViewModel> Rows { get; } = [];
@@ -59,8 +68,8 @@ public sealed class HistoryViewModel : ObservableObject, IPageViewModel
     }
 
     public string SummaryText => _hasEntries
-        ? $"{Rows.Count:N0} scan(s) stored locally on this device"
-        : "No scan history yet.";
+        ? Text.HistorySummary(Rows.Count)
+        : Text.HistorySummaryEmpty;
 
     public HistoryRowViewModel? SelectedRow
     {
@@ -143,8 +152,8 @@ public sealed class HistoryViewModel : ObservableObject, IPageViewModel
     public bool HasDetailErrors => DetailErrors.Count > 0;
 
     public string DetailErrorsCaption => DetailErrors.Count == 0
-        ? "No skipped items were recorded."
-        : $"{DetailErrors.Count:N0} skipped or unreadable item(s)";
+        ? Text.HistorySkippedNone
+        : Text.HistorySkippedCount(DetailErrors.Count);
 
     public void OnNavigatedTo() => Refresh();
 
@@ -183,15 +192,15 @@ public sealed class HistoryViewModel : ObservableObject, IPageViewModel
         var source = SelectedRow.Source;
         DetailTitle = SelectedRow.Title;
         DetailWhen = TimeFormatter.DateTime(source.StartedUtc);
-        DetailStatus = source.StatusText;
+        DetailStatus = SelectedRow.StatusText;
         DetailScope = Presentation.Scope(source.Scope);
         DetailCounts =
-            $"{Presentation.Count(source.FilesScanned, "file")} inspected \u00B7 " +
-            $"{Presentation.Count(source.DetectionCount, "finding")} \u00B7 " +
-            $"{Presentation.Count(source.ErrorCount, "warning")}";
+            $"{Text.Count(source.FilesScanned, Text.File)} inspected · " +
+            $"{Text.Count(source.DetectionCount, Text.Finding)} · " +
+            $"{Text.Count(source.ErrorCount, Text.Warning)}";
         DetailDuration = TimeFormatter.Duration(source.Duration);
         DetailRoots = source.Roots.Count == 0
-            ? "No locations recorded."
+            ? Text.HistoryNoLocations
             : string.Join(Environment.NewLine, source.Roots.Select(Presentation.SanitizePath));
 
         foreach (var error in source.Errors) DetailErrors.Add(new ScanErrorItemViewModel(error));
@@ -203,27 +212,48 @@ public sealed class HistoryViewModel : ObservableObject, IPageViewModel
         if (!HasEntries) return;
 
         var proceed = _services.Dialogs.Confirm(
-            "Clear scan history?",
-            "This deletes the local scan-history file. Quarantined files and their encrypted copies are not affected.",
-            "Clear history",
+            Text.HistoryClearTitle,
+            Text.HistoryClearBody,
+            Text.HistoryClearConfirm,
             danger: true);
         if (!proceed) return;
 
         var result = _services.HistoryStore.Clear();
         if (!result.Ok)
         {
-            BannerTitle = "History could not be cleared";
-            BannerMessage = result.Message ?? "The local history file could not be updated.";
+            BannerTitle = Text.HistoryClearFailedTitle;
+            BannerMessage = result.Message ?? Text.HistoryClearFailedBody;
             BannerSeverity = MessageSeverity.Warning;
             HasBanner = true;
             return;
         }
 
         Refresh();
-        BannerTitle = "Scan history cleared";
-        BannerMessage = "Local scan history was removed. Quarantined files were not changed.";
+        BannerTitle = Text.HistoryClearedTitle;
+        BannerMessage = Text.HistoryClearedBody;
         BannerSeverity = MessageSeverity.Success;
         HasBanner = true;
         _services.NotifyDataChanged();
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(
+            nameof(SummaryText),
+            nameof(DetailErrorsCaption),
+            nameof(DetailCounts),
+            nameof(DetailScope),
+            nameof(DetailRoots));
+
+        foreach (var row in Rows) row.Refresh();
+        UpdateDetails();
+    }
+
+    /// <summary>Unsubscribes from the events this view model listens to.</summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Text.LanguageChanged -= OnLanguageChanged;
     }
 }
