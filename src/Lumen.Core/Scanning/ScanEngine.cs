@@ -134,7 +134,14 @@ public sealed class ScanEngine
             string? hash = null;
             try
             {
-                hash = HashUtil.Sha256File(path, cancellationToken);
+                // The digest is taken from the bytes that are already in memory whenever the
+                // whole file was read, which is the common case. A file that was too large
+                // to read completely is streamed instead, because the quarantine service
+                // compares this digest with a digest of the whole file and a digest of a
+                // prefix would never match it.
+                hash = probe.HoldsWholeFile
+                    ? HashUtil.Sha256Bytes(probe.Content.Span)
+                    : HashUtil.Sha256File(path, cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -321,6 +328,10 @@ public sealed class ScanEngine
         {
             stopwatch.Stop();
             Report(ScanPhase.Finished, force: true);
+
+            // The read buffer of this thread goes back to the pool. The scan is over and
+            // nothing will look at the bytes any more.
+            ProbeReader.ReleaseThreadBuffer();
         }
 
         var finished = _clock.UtcNow;

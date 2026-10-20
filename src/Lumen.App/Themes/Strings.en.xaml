@@ -244,6 +244,11 @@
     <sys:String x:Key="Strings.Settings.AlertCooldownLabel">Repeat the alert for the same file</sys:String>
     <sys:String x:Key="Strings.Settings.AlertCooldownBody">How long Lumen stays quiet about a file it has already reported. A longer silence means fewer interruptions.</sys:String>
     <sys:String x:Key="Strings.Settings.AlertCooldownName">Alert cooldown</sys:String>
+    <sys:String x:Key="Strings.Settings.AggressiveTitle">Aggressive mode</sys:String>
+    <sys:String x:Key="Strings.Settings.AggressiveBody">For a machine you are willing to watch closely. It adds the extra detection rules, watches the folders a dropper actually lands in (Downloads, Startup, temporary files), stops waiting before it inspects a new file, and can quarantine a high-confidence match without asking.</sys:String>
+    <sys:String x:Key="Strings.Settings.AggressiveLabel">Turn on aggressive mode</sys:String>
+    <sys:String x:Key="Strings.Settings.AggressiveWarning">Aggressive mode catches more and reports more. Every extra rule is documented, but the extra rules are noisier than the standard ones, and watching more folders costs CPU. Turn it on when you are testing a suspicious download, and off again afterwards.</sys:String>
+    <sys:String x:Key="Strings.Settings.AggressiveName">Aggressive mode</sys:String>
     <sys:String x:Key="Strings.Settings.LanguageTitle">Language</sys:String>
     <sys:String x:Key="Strings.Settings.LanguageBody">Choose the language of the interface. The change applies immediately, without a restart.</sys:String>
     <sys:String x:Key="Strings.Settings.LanguageEnglish">English</sys:String>

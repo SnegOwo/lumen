@@ -82,7 +82,7 @@
                                Style="{StaticResource CardTitle}"
                                controls:LiveRegion.IsEnabled="True" />
                     <ProgressBar Style="{StaticResource ScanProgressBar}"
-                                 IsIndeterminate="True"
+                                 IsIndeterminate="{Binding HasWorkProgress}"
                                  Margin="0,12,0,0"
                                  AutomationProperties.Name="{DynamicResource Strings.Quarantine.WorkName}" />
                     <TextBlock Text="{Binding WorkingLabel}"

@@ -243,6 +243,11 @@
     <sys:String x:Key="Strings.Settings.AlertCooldownLabel">Répéter l'alerte pour le même fichier</sys:String>
     <sys:String x:Key="Strings.Settings.AlertCooldownBody">Durée pendant laquelle Lumen se tait sur un fichier déjà signalé. Plus c'est long, moins il vous interrompt.</sys:String>
     <sys:String x:Key="Strings.Settings.AlertCooldownName">Délai entre deux alertes</sys:String>
+    <sys:String x:Key="Strings.Settings.AggressiveTitle">Mode agressif</sys:String>
+    <sys:String x:Key="Strings.Settings.AggressiveBody">Pour une machine que vous acceptez de surveiller de près. Il ajoute les règles de détection supplémentaires, surveille les dossiers où un cheval de Troie atterrit vraiment (Téléchargements, Démarrage, fichiers temporaires), n'attend plus avant d'inspecter un nouveau fichier, et peut mettre en quarantaine une correspondance de haute confiance sans demander.</sys:String>
+    <sys:String x:Key="Strings.Settings.AggressiveLabel">Activer le mode agressif</sys:String>
+    <sys:String x:Key="Strings.Settings.AggressiveWarning">Le mode agressif détecte davantage et signale davantage. Chaque règle supplémentaire est documentée, mais elles font plus de bruit que les règles standard, et surveiller plus de dossiers coûte du CPU. Activez-le quand vous testez un téléchargement suspect, puis désactivez-le.</sys:String>
+    <sys:String x:Key="Strings.Settings.AggressiveName">Mode agressif</sys:String>
     <sys:String x:Key="Strings.Settings.LanguageTitle">Langue</sys:String>
     <sys:String x:Key="Strings.Settings.LanguageBody">Choisissez la langue de l'interface. Le changement s'applique immédiatement, sans redémarrage.</sys:String>
     <sys:String x:Key="Strings.Settings.LanguageEnglish">English</sys:String>

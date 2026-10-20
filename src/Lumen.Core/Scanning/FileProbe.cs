@@ -6,10 +6,23 @@ namespace Lumen.Core.Scanning;
 /// A bounded, immutable snapshot of what the scanner read from one file. Detectors only see
 /// this object, never the filesystem. Content is capped by the caller's inspection limit.
 /// </summary>
+/// <remarks>
+/// <para>
+/// The bytes behind a probe are either owned by the probe itself, which is what the test
+/// helpers build, or borrowed from the reader that produced it. A borrowed buffer is
+/// reused for the next file that the same thread reads, so the bytes are valid until
+/// then. A detector therefore has to use the probe while it inspects it and must not keep
+/// it for later; the scan engine never does, and neither does the real time monitor.
+/// </para>
+/// <para>
+/// The length of the content never changes, so a caller that only needs to know how much
+/// was read can keep the probe and ask for the length at any time.
+/// </para>
+/// </remarks>
 public sealed class FileProbe
 {
     private const int MaxTextSampleBytes = 512 * 1024;
-    private readonly byte[] _content;
+    private readonly ReadOnlyMemory<byte> _content;
     private readonly object _textGate = new();
     private string? _textSample;
     private bool _textDecoded;
@@ -20,22 +33,49 @@ public sealed class FileProbe
         FileAttributes attributes,
         byte[] content,
         bool contentTruncated)
+        : this(path, sizeBytes, attributes, content.AsMemory(), contentTruncated)
+    {
+    }
+
+    /// <summary>
+    /// Creates a probe over bytes the caller owns. The probe keeps the memory alive for as
+    /// long as it exists, which is what the callers that build their own content expect.
+    /// </summary>
+    internal FileProbe(
+        string path,
+        long sizeBytes,
+        FileAttributes attributes,
+        ReadOnlyMemory<byte> content,
+        bool contentTruncated)
     {
         Path = path;
         SizeBytes = sizeBytes;
         Attributes = attributes;
         _content = content;
         ContentTruncated = contentTruncated;
-        LooksTextual = TextHeuristics.LooksTextual(content);
+        LooksTextual = TextHeuristics.LooksTextual(content.Span);
     }
 
     public string Path { get; }
     public string FileName => System.IO.Path.GetFileName(Path);
     public long SizeBytes { get; }
     public FileAttributes Attributes { get; }
+
+    /// <summary>
+    /// The bytes that were read from the file. They are a prefix of the file when
+    /// <see cref="ContentTruncated"/> is true.
+    /// </summary>
     public ReadOnlyMemory<byte> Content => _content;
+
     public bool ContentTruncated { get; }
     public bool LooksTextual { get; }
+
+    /// <summary>
+    /// True when the probe holds the whole file and not only a prefix of it. A caller that
+    /// needs the digest of the whole file can compute it from <see cref="Content"/> instead
+    /// of reading the file a second time.
+    /// </summary>
+    public bool HoldsWholeFile => !ContentTruncated;
 
     public static FileProbe FromBytes(
         string path,

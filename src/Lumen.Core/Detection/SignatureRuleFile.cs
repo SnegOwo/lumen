@@ -116,6 +116,12 @@ internal sealed class SignatureRuleDto
 
     public string Advice { get; set; } = string.Empty;
 
+    /// <summary>
+    /// True when the rule belongs to the AGGRESSIVE tier. The flag is optional so a rule
+    /// file written before the tier existed keeps working unchanged.
+    /// </summary>
+    public bool Aggressive { get; set; }
+
     public List<SignaturePatternDto> Patterns { get; set; } = [];
 
     /// <summary>
@@ -172,6 +178,7 @@ internal sealed class SignatureRuleDto
             Description = Description.Trim(),
             Detail = Detail.Trim(),
             Advice = Advice.Trim(),
+            Aggressive = Aggressive,
             Patterns = patterns
         };
 

@@ -186,6 +186,30 @@
                 </StackPanel>
             </Border>
 
+            <!-- ==================== Aggressive mode ==================== -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource Strings.Settings.AggressiveTitle}" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="{DynamicResource Strings.Settings.AggressiveBody}"
+                               Style="{StaticResource BodySecondary}"
+                               Margin="0,4,0,0" />
+
+                    <CheckBox Style="{StaticResource ToggleSwitch}"
+                              IsChecked="{Binding AggressiveMode, Mode=TwoWay}"
+                              Margin="0,16,0,0"
+                              AutomationProperties.Name="{DynamicResource Strings.Settings.AggressiveName}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Strings.Settings.AggressiveLabel}" Style="{StaticResource Label}" />
+                        </StackPanel>
+                    </CheckBox>
+
+                    <Border Style="{StaticResource InsetCard}" Margin="0,12,0,0" Padding="14,12">
+                        <TextBlock Text="{DynamicResource Strings.Settings.AggressiveWarning}"
+                                   Style="{StaticResource Caption}" />
+                    </Border>
+                </StackPanel>
+            </Border>
+
             <!-- ==================== Real-time protection ==================== -->
             <Border Style="{StaticResource Card}" Margin="0,0,0,14">
                 <StackPanel>

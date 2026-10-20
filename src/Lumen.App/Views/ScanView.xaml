@@ -275,7 +275,7 @@
                     </Grid>
 
                     <ProgressBar Style="{StaticResource ScanProgressBar}"
-                                 IsIndeterminate="True"
+                                 IsIndeterminate="{Binding IsScanning}"
                                  Margin="0,16,0,0"
                                  AutomationProperties.Name="{DynamicResource Strings.Scan.ProgressName}" />
 

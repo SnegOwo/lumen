@@ -78,6 +78,11 @@ public sealed class RealtimeMonitor : IDisposable
     private long _settleDelayTicks;
     private int _workerCount;
 
+    // Aggressive mode is a flag, not a behaviour of its own: the behaviour comes from the
+    // watch roots and from the settle delay and worker count that go with it. The flag is
+    // kept so the interface can say what the monitor is running with.
+    private volatile bool _aggressiveMode;
+
     private readonly object _sessionLock = new();
     private MonitorSession? _session;
     private MonitorConfiguration _configuration;
@@ -119,6 +124,12 @@ public sealed class RealtimeMonitor : IDisposable
     /// The delay doubles with every consecutive failure.</param>
     /// <param name="workerCount">How many files may be inspected at the same time. Values
     /// outside <see cref="MinWorkerCount"/>..<see cref="MaxWorkerCount"/> are clamped.</param>
+    /// <param name="aggressiveMode">
+    /// True when the monitor runs in aggressive mode. The flag itself changes nothing:
+    /// the aggressive watch roots and the faster settings come from
+    /// <see cref="ResolveConfiguration"/>, and this only records which mode the monitor
+    /// was told about, so the interface can say so honestly.
+    /// </param>
     public RealtimeMonitor(
         DetectorRegistry detectors,
         IReadOnlyList<string> roots,
@@ -132,7 +143,8 @@ public sealed class RealtimeMonitor : IDisposable
         IFileHashProvider? hashProvider = null,
         int maxPendingPaths = DefaultMaxPendingPaths,
         TimeSpan? watcherRetryDelay = null,
-        int workerCount = DefaultWorkerCount)
+        int workerCount = DefaultWorkerCount,
+        bool aggressiveMode = false)
     {
         _detectors = detectors;
         _clock = clock;
@@ -144,6 +156,7 @@ public sealed class RealtimeMonitor : IDisposable
         _watcherRetryDelay = watcherRetryDelay ?? TimeSpan.FromSeconds(2);
         _maxPendingPaths = Math.Clamp(maxPendingPaths, 16, 1_000_000);
         Volatile.Write(ref _workerCount, Math.Clamp(workerCount, MinWorkerCount, MaxWorkerCount));
+        _aggressiveMode = aggressiveMode;
 
         var exclusions = NormalizeDirectories(excludedDirectories);
         _configuration = new MonitorConfiguration(
@@ -176,6 +189,18 @@ public sealed class RealtimeMonitor : IDisposable
     /// when several files arrive together; they also mean more disk reads at the same time.
     /// </summary>
     public int WorkerCount => Volatile.Read(ref _workerCount);
+
+    /// <summary>
+    /// True when the monitor was told to run in aggressive mode.
+    ///
+    /// <para>
+    /// The flag is a label, not a behaviour: the aggressive watch roots, the zero settle
+    /// delay and the larger worker pool come from <see cref="ResolveConfiguration"/>. The
+    /// interface shows this flag so it can tell the user that aggressive mode is on and
+    /// that it costs more CPU and covers more folders.
+    /// </para>
+    /// </summary>
+    public bool AggressiveMode => _aggressiveMode;
 
     /// <summary>True while the workers and the folder watchers are active.</summary>
     public bool IsRunning
@@ -341,13 +366,19 @@ public sealed class RealtimeMonitor : IDisposable
     /// waiting keeps the deadline it has.</param>
     /// <param name="workerCount">The new number of workers, or null to keep the current one.
     /// Workers that are no longer needed finish the file they are reading and then stop.</param>
+    /// <param name="aggressiveMode">
+    /// True or false to record the mode the monitor runs in, or null to keep the current
+    /// one. The flag itself changes nothing: the watch roots, the settle delay and the
+    /// worker count are what aggressive mode really means.
+    /// </param>
     /// <returns>The outcome of the reconfiguration.</returns>
     public OperationResult Configure(
         IReadOnlyList<string> roots,
         IReadOnlyList<string> excludedDirectories,
         long? maxInspectBytes = null,
         TimeSpan? settleDelay = null,
-        int? workerCount = null)
+        int? workerCount = null,
+        bool? aggressiveMode = null)
     {
         if (_disposed) return OperationResult.Failure("The real-time monitor has been disposed.");
 
@@ -372,6 +403,8 @@ public sealed class RealtimeMonitor : IDisposable
             Volatile.Write(ref _workerCount, workers);
             session?.AdjustWorkers(workers);
         }
+
+        if (aggressiveMode is not null) _aggressiveMode = aggressiveMode.Value;
 
         _log.Info(
             "Realtime",
@@ -471,6 +504,7 @@ public sealed class RealtimeMonitor : IDisposable
         {
             WatchedFolderCount = watched,
             ConfiguredFolderCount = configuration.Roots.Count,
+            IsAggressiveMode = AggressiveMode,
             QueueDepth = queueDepth,
             PendingPathCount = pending,
             DroppedPathCount = Interlocked.Read(ref _droppedPathCount),
@@ -498,6 +532,60 @@ public sealed class RealtimeMonitor : IDisposable
         IEnumerable<string>? extraWatchFolders = null,
         IEnumerable<string>? excludedFolders = null) =>
         ScanPlanner.RealtimeWatchFolders(userProfile, extraWatchFolders, excludedFolders);
+
+    /// <summary>
+    /// Builds the AGGRESSIVE watch list: the standard watch roots plus the folders a
+    /// dropper uses — the Downloads folder, the per-user Startup folder and the
+    /// per-user temporary folder — minus everything inside an excluded subtree, with
+    /// nested folders removed so no folder is watched twice.
+    ///
+    /// <para>
+    /// This costs more than the standard list: more folders mean more file-system events
+    /// and more files to inspect. The interface shows how many folders are watched, so
+    /// the user is never surprised by the bill.
+    /// </para>
+    /// </summary>
+    /// <param name="userProfile">The profile whose dropper locations are added.</param>
+    /// <param name="extraWatchFolders">Additional folders the user wants watched.</param>
+    /// <param name="excludedFolders">
+    /// Folders whose subtree is skipped. A root inside one of them is not watched at
+    /// all, and the dropper locations are skipped the same way.
+    /// </param>
+    /// <returns>The watch roots, in a stable order, without nested duplicates.</returns>
+    public static IReadOnlyList<string> AggressiveWatchRoots(
+        string userProfile,
+        IEnumerable<string>? extraWatchFolders = null,
+        IEnumerable<string>? excludedFolders = null) =>
+        AggressiveWatchList.Build(userProfile, extraWatchFolders, excludedFolders);
+
+    /// <summary>
+    /// Turns the user's settings into the configuration the monitor runs with.
+    ///
+    /// <para>
+    /// Aggressive mode watches more folders, stops waiting (the settle delay goes to
+    /// zero) and uses more workers. Everything else stays exactly as it is, and nothing
+    /// about the settings makes the monitor delete anything: what happens to a match is
+    /// decided by <see cref="RealtimeResponsePolicy"/>, and only after the user asked
+    /// for it.
+    /// </para>
+    ///
+    /// <para>
+    /// The application and the tests both go through this method, so there is exactly
+    /// one answer to "what does aggressive mode actually do".
+    /// </para>
+    /// </summary>
+    /// <param name="settings">The user's settings. They are normalized first.</param>
+    /// <param name="userProfile">The profile whose folders are watched.</param>
+    /// <param name="additionalExcludedFolders">
+    /// Folders to skip on top of the ones in the settings. The application passes
+    /// Lumen's own data folder here, so Lumen never watches itself.
+    /// </param>
+    /// <returns>The effective configuration.</returns>
+    public static RealtimeConfiguration ResolveConfiguration(
+        AppSettings settings,
+        string userProfile,
+        IEnumerable<string>? additionalExcludedFolders = null) =>
+        RealtimeConfigurationResolver.Resolve(settings, userProfile, additionalExcludedFolders);
 
     /// <summary>Stops the monitor and releases the watchers.</summary>
     public void Dispose()

@@ -60,6 +60,13 @@ public sealed record PeImportEntry(string Module, string Function, bool IsOrdina
 /// could not be settled either way.
 /// </param>
 /// <param name="HasDebugDirectory">True when the image carries debug information.</param>
+/// <param name="AddressOfEntryPoint">
+/// The address the program starts at. Zero when the image does not say.
+/// </param>
+/// <param name="HasImportDirectory">
+/// True when the image declares an import table. A packed image often declares none,
+/// because the real imports are rebuilt at runtime.
+/// </param>
 /// <param name="Warnings">Plain-language notes about anything unusual in the header.</param>
 public sealed record PeHeader(
     ushort Machine,
@@ -76,6 +83,8 @@ public sealed record PeHeader(
     bool HasValidDigitalSignature,
     bool SignatureCheckComplete,
     bool HasDebugDirectory,
+    uint AddressOfEntryPoint,
+    bool HasImportDirectory,
     IReadOnlyList<string> Warnings);
 
 /// <summary>
@@ -225,12 +234,14 @@ public static class PeParser
 
         // Import directory.
         var imports = new List<PeImportEntry>();
+        var hasImportDirectory = false;
         if (directoryCount > 1)
         {
             var importRva = ReadUInt32(data, directoryOffset + 8);
             var importSize = ReadUInt32(data, directoryOffset + 12);
             if (importRva != 0 && importSize != 0)
             {
+                hasImportDirectory = true;
                 ReadImports(data, sections, importRva, is32Bit.Value, imports, warnings);
             }
         }
@@ -298,8 +309,52 @@ public static class PeParser
             hasValidSignature,
             !truncated,
             hasDebugDirectory,
+            ReadUInt32(data, optional + 16),
+            hasImportDirectory,
             warnings);
 
+        return true;
+    }
+
+    /// <summary>
+    /// Returns the section that holds the supplied address, or null when the address falls
+    /// outside every section. The answer is used to tell whether the entry point of an
+    /// image lands in code that is meant to be executed.
+    /// </summary>
+    /// <param name="header">The parsed image header.</param>
+    /// <param name="rva">The address to look for.</param>
+    public static PeSection? SectionAt(PeHeader header, uint rva)
+    {
+        if (rva == 0) return null;
+
+        foreach (var section in header.Sections)
+        {
+            var span = Math.Max(section.VirtualSize, section.SizeOfRawData);
+            if (span == 0) continue;
+            if (rva < section.VirtualAddress || rva >= section.VirtualAddress + span) continue;
+            return section;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Converts an address inside the image into an offset in the file, so a detector can
+    /// look at the bytes around the entry point without reading the file again.
+    /// </summary>
+    /// <param name="header">The parsed image header.</param>
+    /// <param name="rva">The address to convert.</param>
+    /// <param name="offset">The offset in the file when the address could be placed.</param>
+    public static bool TryResolveOffset(PeHeader header, uint rva, out int offset)
+    {
+        var section = SectionAt(header, rva);
+        if (section is null)
+        {
+            offset = -1;
+            return false;
+        }
+
+        offset = (int)(section.PointerToRawData + (rva - section.VirtualAddress));
         return true;
     }
 

@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Numerics;
+using System.Text;
 using Lumen.Core.Abstractions;
 using Lumen.Core.Models;
 using Lumen.Core.Scanning;
@@ -92,6 +95,13 @@ public sealed record SignatureRule
     /// <summary>A safe next step for the user.</summary>
     public required string Advice { get; init; }
 
+    /// <summary>
+    /// True when the rule belongs to the AGGRESSIVE tier. Aggressive rules only run when
+    /// the user has asked for maximum sensitivity, because they are noisier than the
+    /// standard rules. The flag changes WHEN a rule runs, never WHETHER it is honest.
+    /// </summary>
+    public bool Aggressive { get; init; }
+
     /// <summary>The patterns that make this rule fire. Any single match is enough.</summary>
     public required IReadOnlyList<SignaturePattern> Patterns { get; init; }
 }
@@ -154,27 +164,42 @@ public sealed class SignatureEngine : IScanDetector
     public const string DefaultRuleFileName = "rules.json";
 
     private readonly IReadOnlyList<SignatureRule> _rules;
+    private readonly IReadOnlyList<CompiledRule> _compiled;
 
     /// <summary>
     /// Creates an engine from an already parsed rule set. The rules are trusted because the
     /// caller parsed them.
     /// </summary>
-    public SignatureEngine(SignatureRuleSet ruleSet)
+    /// <param name="ruleSet">The rules to apply.</param>
+    /// <param name="includeAggressive">
+    /// True to also apply the rules that belong to the AGGRESSIVE tier. It is false by
+    /// default so an aggressive rule never fires unless somebody asked for it.
+    /// </param>
+    public SignatureEngine(SignatureRuleSet ruleSet, bool includeAggressive = false)
     {
-        _rules = ruleSet.Rules;
+        _rules = includeAggressive
+            ? ruleSet.Rules.ToArray()
+            : ruleSet.Rules.Where(rule => !rule.Aggressive).ToArray();
+        _compiled = Compile(_rules);
         Load = SignatureLoadResult.Success($"parsed rule set (schema {ruleSet.SchemaVersion})", ruleSet);
     }
 
-    private SignatureEngine(IReadOnlyList<SignatureRule> rules, SignatureLoadResult load)
+    private SignatureEngine(IReadOnlyList<SignatureRule> rules, SignatureLoadResult load, bool includeAggressive)
     {
-        _rules = rules;
+        _rules = includeAggressive
+            ? rules.ToArray()
+            : rules.Where(rule => !rule.Aggressive).ToArray();
+        _compiled = Compile(_rules);
         Load = load;
     }
 
     /// <summary>How this engine was built, including any problem that was reported.</summary>
     public SignatureLoadResult Load { get; }
 
-    /// <summary>The rules this engine applies.</summary>
+    /// <summary>
+    /// The rules this engine applies. Aggressive rules are only in this list when the
+    /// engine was built with the aggressive tier switched on.
+    /// </summary>
     public IReadOnlyList<SignatureRule> Rules => _rules;
 
     /// <inheritdoc />
@@ -197,12 +222,17 @@ public sealed class SignatureEngine : IScanDetector
     /// Creates the engine from the rule set embedded in the assembly. No file system access
     /// happens, so this is safe to call while a scan is running.
     /// </summary>
-    public static SignatureEngine CreateEmbedded(ILog? log = null)
+    /// <param name="log">Where a problem with the embedded rules is reported.</param>
+    /// <param name="includeAggressive">
+    /// True to also apply the rules that belong to the AGGRESSIVE tier. It is false by
+    /// default, so the aggressive rules stay out of the way until the user asks for them.
+    /// </param>
+    public static SignatureEngine CreateEmbedded(ILog? log = null, bool includeAggressive = false)
     {
         var result = LoadEmbedded(log);
         return result.RuleSet is null
-            ? new SignatureEngine([], SignatureLoadResult.Failure("embedded", result.Problem ?? "The embedded rules could not be read."))
-            : new SignatureEngine(result.RuleSet.Rules, SignatureLoadResult.Success("embedded", result.RuleSet));
+            ? new SignatureEngine([], SignatureLoadResult.Failure("embedded", result.Problem ?? "The embedded rules could not be read."), includeAggressive)
+            : new SignatureEngine(result.RuleSet.Rules, SignatureLoadResult.Success("embedded", result.RuleSet), includeAggressive);
     }
 
     /// <summary>
@@ -210,16 +240,16 @@ public sealed class SignatureEngine : IScanDetector
     /// the embedded rule set. A malformed file is rejected in full: none of its rules are
     /// trusted, a warning is logged, and the problem is reported through <see cref="Load"/>.
     /// </summary>
-    public static SignatureEngine CreateDefault(string? ruleFilePath, ILog? log = null)
+    public static SignatureEngine CreateDefault(string? ruleFilePath, ILog? log = null, bool includeAggressive = false)
     {
-        if (string.IsNullOrWhiteSpace(ruleFilePath)) return CreateEmbedded(log);
+        if (string.IsNullOrWhiteSpace(ruleFilePath)) return CreateEmbedded(log, includeAggressive);
 
         var full = Path.GetFullPath(ruleFilePath);
-        if (!File.Exists(full)) return CreateEmbedded(log);
+        if (!File.Exists(full)) return CreateEmbedded(log, includeAggressive);
 
         var result = LoadFromFile(full, log);
         if (result.Ok && result.RuleSet is not null)
-            return new SignatureEngine(result.RuleSet.Rules, SignatureLoadResult.Success(full, result.RuleSet));
+            return new SignatureEngine(result.RuleSet.Rules, SignatureLoadResult.Success(full, result.RuleSet), includeAggressive);
 
         // Fail closed for the untrusted file: none of its rules are used. The embedded rules
         // stay in force so a broken overlay cannot silently disable detection.
@@ -230,15 +260,16 @@ public sealed class SignatureEngine : IScanDetector
             embeddedRules,
             SignatureLoadResult.Failure(
                 full,
-                $"The rule file was rejected and none of its rules were applied. {result.Problem}"));
+                $"The rule file was rejected and none of its rules were applied. {result.Problem}"),
+            includeAggressive);
     }
 
     /// <summary>
     /// Creates the engine from a rule file placed next to the application, falling back to
     /// the embedded rules when that file is absent.
     /// </summary>
-    public static SignatureEngine CreateDefault(ILog? log = null) =>
-        CreateDefault(Path.Combine(AppContext.BaseDirectory, "Signatures", DefaultRuleFileName), log);
+    public static SignatureEngine CreateDefault(ILog? log = null, bool includeAggressive = false) =>
+        CreateDefault(Path.Combine(AppContext.BaseDirectory, "Signatures", DefaultRuleFileName), log, includeAggressive);
 
     /// <summary>
     /// Parses a rule file from disk. The file is parsed strictly: one bad rule rejects the
@@ -360,7 +391,7 @@ public sealed class SignatureEngine : IScanDetector
     public IReadOnlyList<SignatureMatch> Match(FileProbe probe, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (_rules.Count == 0) return [];
+        if (_compiled.Count == 0) return [];
 
         var content = probe.Content.Span;
         if (content.Length == 0) return [];
@@ -368,18 +399,22 @@ public sealed class SignatureEngine : IScanDetector
         var extension = Path.GetExtension(probe.FileName);
         var matches = new List<SignatureMatch>();
 
-        foreach (var rule in _rules)
+        // The lower case form of the text is built once per file and only when a rule
+        // actually needs it. It used to be built again for every pattern.
+        string? lowerText = null;
+
+        foreach (var rule in _compiled)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             foreach (var pattern in rule.Patterns)
             {
-                if (!AppliesToExtension(pattern, extension)) continue;
+                if (!pattern.AppliesTo(extension)) continue;
 
-                var offset = MatchPattern(pattern, content, probe);
+                var offset = pattern.Match(content, probe, ref lowerText);
                 if (offset < 0) continue;
 
-                matches.Add(new SignatureMatch(rule, pattern, offset));
+                matches.Add(new SignatureMatch(rule.Rule, pattern.Pattern, offset));
                 break;
             }
         }
@@ -405,83 +440,246 @@ public sealed class SignatureEngine : IScanDetector
         }
     }
 
-    private static bool AppliesToExtension(SignaturePattern pattern, string extension)
+    /// <summary>
+    /// Prepares the rules once, so that matching a file never parses a pattern again.
+    /// </summary>
+    private static IReadOnlyList<CompiledRule> Compile(IReadOnlyList<SignatureRule> rules)
     {
-        if (pattern.Extensions.Count == 0) return true;
-        if (string.IsNullOrEmpty(extension)) return false;
-
-        foreach (var candidate in pattern.Extensions)
-        {
-            if (string.Equals(candidate, extension, StringComparison.OrdinalIgnoreCase)) return true;
-        }
-
-        return false;
+        var compiled = new List<CompiledRule>(rules.Count);
+        foreach (var rule in rules) compiled.Add(new CompiledRule(rule));
+        return compiled;
     }
 
-    private static int MatchPattern(SignaturePattern pattern, ReadOnlySpan<byte> content, FileProbe probe)
+    /// <summary>
+    /// A rule whose patterns are ready to be applied. The text of a pattern is turned into
+    /// bytes once, when the engine is built, instead of once per inspected file.
+    /// </summary>
+    private sealed class CompiledRule
     {
-        switch (pattern.Kind)
+        public CompiledRule(SignatureRule rule)
         {
-            case SignaturePatternKind.Ascii:
-            {
-                var needle = System.Text.Encoding.ASCII.GetBytes(pattern.Value);
-                if (needle.Length == 0) return -1;
-                return ByteSearch.IndexOfAscii(content, needle, pattern.CaseSensitive);
-            }
+            Rule = rule;
 
-            case SignaturePatternKind.Hex:
-            {
-                if (!HexPattern.TryParse(pattern.Value, out var bytes)) return -1;
-                return MatchHex(content, bytes);
-            }
+            var patterns = new List<CompiledPattern>(rule.Patterns.Count);
+            foreach (var pattern in rule.Patterns) patterns.Add(new CompiledPattern(pattern));
+            Patterns = patterns;
+        }
 
-            case SignaturePatternKind.TokenGroups:
-            {
-                var text = probe.GetTextSample();
-                if (string.IsNullOrEmpty(text)) return -1;
-                var groups = TokenGroupPattern.Parse(pattern.Value);
-                if (groups.Count == 0) return -1;
+        public SignatureRule Rule { get; }
 
-                var lower = text.ToLowerInvariant();
-                foreach (var group in groups)
+        public IReadOnlyList<CompiledPattern> Patterns { get; }
+    }
+
+    /// <summary>
+    /// One pattern of a rule, prepared for matching.
+    /// </summary>
+    private sealed class CompiledPattern
+    {
+        private readonly byte[]? _ascii;
+        private readonly byte[]? _asciiLower;
+        private readonly CompiledHex? _hex;
+        private readonly IReadOnlyList<IReadOnlyList<string>>? _tokenGroups;
+
+        public CompiledPattern(SignaturePattern pattern)
+        {
+            Pattern = pattern;
+
+            switch (pattern.Kind)
+            {
+                case SignaturePatternKind.Ascii:
                 {
-                    if (!group.Any(token => lower.Contains(token, StringComparison.Ordinal))) return -1;
+                    var needle = Encoding.ASCII.GetBytes(pattern.Value);
+                    if (needle.Length > 0)
+                    {
+                        _ascii = needle;
+                        _asciiLower = pattern.CaseSensitive ? null : VectorByteSearch.Fold(needle);
+                    }
+
+                    break;
                 }
 
-                return 0;
+                case SignaturePatternKind.Hex:
+                {
+                    if (HexPattern.TryParse(pattern.Value, out var bytes))
+                    {
+                        _hex = CompiledHex.Create(bytes);
+                    }
+
+                    break;
+                }
+
+                case SignaturePatternKind.TokenGroups:
+                {
+                    var groups = TokenGroupPattern.Parse(pattern.Value);
+                    if (groups.Count > 0) _tokenGroups = groups;
+                    break;
+                }
+            }
+        }
+
+        public SignaturePattern Pattern { get; }
+
+        /// <summary>
+        /// True when the pattern applies to a file with this extension. A pattern without
+        /// an extension list applies to every file.
+        /// </summary>
+        public bool AppliesTo(string extension)
+        {
+            if (Pattern.Extensions.Count == 0) return true;
+            if (string.IsNullOrEmpty(extension)) return false;
+
+            foreach (var candidate in Pattern.Extensions)
+            {
+                if (string.Equals(candidate, extension, StringComparison.OrdinalIgnoreCase)) return true;
             }
 
-            default:
-                return -1;
+            return false;
+        }
+
+        /// <summary>
+        /// Returns the offset of the match, or -1 when the pattern does not match.
+        /// </summary>
+        /// <param name="content">The bytes of the file.</param>
+        /// <param name="probe">The probe, used for the text sample of the token rules.</param>
+        /// <param name="lowerText">
+        /// The lower case form of the text sample. It is built once per file and reused by
+        /// every token rule, because building it copies the whole sample.
+        /// </param>
+        public int Match(ReadOnlySpan<byte> content, FileProbe probe, ref string? lowerText)
+        {
+            switch (Pattern.Kind)
+            {
+                case SignaturePatternKind.Ascii:
+                {
+                    if (_ascii is null) return -1;
+                    return Pattern.CaseSensitive
+                        ? VectorByteSearch.IndexOf(content, _ascii)
+                        : VectorByteSearch.IndexOfIgnoreCase(content, _asciiLower!);
+                }
+
+                case SignaturePatternKind.Hex:
+                {
+                    if (_hex is null) return -1;
+                    return _hex.Match(content);
+                }
+
+                case SignaturePatternKind.TokenGroups:
+                {
+                    if (_tokenGroups is null) return -1;
+
+                    var text = probe.GetTextSample();
+                    if (string.IsNullOrEmpty(text)) return -1;
+
+                    lowerText ??= text.ToLowerInvariant();
+                    foreach (var group in _tokenGroups)
+                    {
+                        if (!group.Any(token => lowerText.Contains(token, StringComparison.Ordinal))) return -1;
+                    }
+
+                    return 0;
+                }
+
+                default:
+                    return -1;
+            }
         }
     }
 
-    private static int MatchHex(ReadOnlySpan<byte> content, IReadOnlyList<HexByte> pattern)
+    /// <summary>
+    /// A hexadecimal pattern prepared for matching.
+    /// </summary>
+    /// <remarks>
+    /// The longest run of bytes without a wildcard is used to find the places where the
+    /// pattern can start. The search for that run is a plain byte search, which the
+    /// processor does several bytes at a time, and only the few places it finds are checked
+    /// against the whole pattern.
+    /// </remarks>
+    private sealed class CompiledHex
     {
-        if (pattern.Count == 0 || pattern.Count > content.Length) return -1;
+        private readonly byte[] _values;
+        private readonly bool[] _wildcards;
+        private readonly int _anchorOffset;
+        private readonly byte[] _anchor;
 
-        var first = pattern[0];
-        var limit = content.Length - pattern.Count;
-
-        for (var start = 0; start <= limit; start++)
+        private CompiledHex(byte[] values, bool[] wildcards, int anchorOffset, byte[] anchor)
         {
-            // Most positions fail on the first byte, so the rest is only compared there.
-            if (!first.IsWildcard && content[start] != first.Value) continue;
-
-            var matched = true;
-            for (var index = 1; index < pattern.Count; index++)
-            {
-                var expected = pattern[index];
-                if (expected.IsWildcard) continue;
-                if (content[start + index] == expected.Value) continue;
-                matched = false;
-                break;
-            }
-
-            if (matched) return start;
+            _values = values;
+            _wildcards = wildcards;
+            _anchorOffset = anchorOffset;
+            _anchor = anchor;
         }
 
-        return -1;
+        public static CompiledHex Create(IReadOnlyList<HexByte> pattern)
+        {
+            var values = new byte[pattern.Count];
+            var wildcards = new bool[pattern.Count];
+            for (var index = 0; index < pattern.Count; index++)
+            {
+                values[index] = pattern[index].Value;
+                wildcards[index] = pattern[index].IsWildcard;
+            }
+
+            // Find the longest run of bytes that have to match exactly.
+            var bestOffset = -1;
+            var bestLength = 0;
+            var runOffset = -1;
+            var runLength = 0;
+            for (var index = 0; index < pattern.Count; index++)
+            {
+                if (wildcards[index])
+                {
+                    runLength = 0;
+                    runOffset = -1;
+                    continue;
+                }
+
+                if (runOffset < 0) runOffset = index;
+                runLength++;
+                if (runLength > bestLength)
+                {
+                    bestLength = runLength;
+                    bestOffset = runOffset;
+                }
+            }
+
+            if (bestOffset < 0)
+            {
+                // Every byte is a wildcard, so the pattern matches anywhere.
+                return new CompiledHex(values, wildcards, 0, []);
+            }
+
+            var anchor = new byte[bestLength];
+            Array.Copy(values, bestOffset, anchor, 0, bestLength);
+            return new CompiledHex(values, wildcards, bestOffset, anchor);
+        }
+
+        public int Match(ReadOnlySpan<byte> content)
+        {
+            if (_values.Length == 0 || _values.Length > content.Length) return -1;
+            if (_anchor.Length == 0) return 0;
+
+            var index = VectorByteSearch.IndexOf(content, _anchor);
+            while (index >= 0)
+            {
+                var start = index - _anchorOffset;
+                if (start >= 0 && MatchesAt(content, start)) return start;
+
+                index = VectorByteSearch.IndexOf(content, _anchor, index + 1);
+            }
+
+            return -1;
+        }
+
+        private bool MatchesAt(ReadOnlySpan<byte> content, int start)
+        {
+            for (var index = 0; index < _values.Length; index++)
+            {
+                if (_wildcards[index]) continue;
+                if (content[start + index] != _values[index]) return false;
+            }
+
+            return true;
+        }
     }
 }
 
@@ -490,3 +688,177 @@ public sealed class SignatureEngine : IScanDetector
 /// where, so the UI can explain the result without exposing file contents.
 /// </summary>
 public sealed record SignatureMatch(SignatureRule Rule, SignaturePattern Pattern, int Offset);
+
+/// <summary>
+/// Byte searches that use the vector instructions of the processor. They live next to the
+/// signature engine because that is the only place that needs them: the engine runs its
+/// patterns over every file it inspects, so a faster search is worth a lot of processor
+/// time on a large scan. None of them allocates.
+/// </summary>
+internal static class VectorByteSearch
+{
+    /// <summary>
+    /// Finds the first occurrence of a byte sequence, or -1 when it is not there.
+    /// </summary>
+    public static int IndexOf(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> needle) =>
+        IndexOf(haystack, needle, 0);
+
+    /// <summary>
+    /// Finds the first occurrence of a byte sequence at or after <paramref name="from"/>.
+    /// </summary>
+    public static int IndexOf(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> needle, int from)
+    {
+        if (needle.Length == 0) return from <= haystack.Length ? from : -1;
+        if (needle.Length > haystack.Length) return -1;
+
+        var limit = haystack.Length - needle.Length;
+        var index = Math.Max(0, from);
+
+        while (index <= limit)
+        {
+            var candidate = IndexOfByte(haystack, index, limit, needle[0]);
+            if (candidate < 0) return -1;
+
+            if (MatchesAt(haystack, candidate, needle)) return candidate;
+            index = candidate + 1;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Finds the first occurrence of an ASCII needle, ignoring the case of letters. The
+    /// needle must already be in lower case; <see cref="Fold"/> produces that form.
+    /// </summary>
+    public static int IndexOfIgnoreCase(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> lowerNeedle)
+    {
+        if (lowerNeedle.Length == 0) return 0;
+        if (lowerNeedle.Length > haystack.Length) return -1;
+
+        var limit = haystack.Length - lowerNeedle.Length;
+        var index = 0;
+
+        while (index <= limit)
+        {
+            var candidate = IndexOfByte(haystack, index, limit, lowerNeedle[0], foldHaystack: true);
+            if (candidate < 0) return -1;
+
+            if (MatchesAt(haystack, candidate, lowerNeedle, foldHaystack: true)) return candidate;
+            index = candidate + 1;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Turns the letters of a needle into lower case, which is the form the case
+    /// insensitive search works with.
+    /// </summary>
+    public static byte[] Fold(ReadOnlySpan<byte> value)
+    {
+        var result = new byte[value.Length];
+        for (var index = 0; index < value.Length; index++) result[index] = Fold(value[index]);
+        return result;
+    }
+
+    /// <summary>
+    /// Finds the first byte at or after <paramref name="from"/> that is equal to the target.
+    /// Several bytes are compared at a time, which is what makes the search quick.
+    /// </summary>
+    private static int IndexOfByte(
+        ReadOnlySpan<byte> haystack,
+        int from,
+        int limit,
+        byte target,
+        bool foldHaystack = false)
+    {
+        var width = Vector<byte>.Count;
+        var index = from;
+
+        while (index + width <= haystack.Length)
+        {
+            var chunk = new Vector<byte>(haystack.Slice(index, width));
+            if (foldHaystack) chunk = Fold(chunk);
+
+            var equal = Vector.Equals(chunk, Vector.Create(target));
+            var mask = Vector.ExtractMostSignificantBits(
+                Vector.ConditionalSelect(equal, Vector.Create((byte)0x80), Vector.Create((byte)0)));
+
+            if (mask != 0)
+            {
+                var position = index + BitOperations.TrailingZeroCount(mask) / 8;
+                return position <= limit ? position : -1;
+            }
+
+            index += width;
+        }
+
+        for (; index <= limit; index++)
+        {
+            var value = foldHaystack ? Fold(haystack[index]) : haystack[index];
+            if (value == target) return index;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Checks whether the needle is at the given position. Whole vectors are compared at a
+    /// time and only the last few bytes are compared one by one.
+    /// </summary>
+    private static bool MatchesAt(
+        ReadOnlySpan<byte> haystack,
+        int position,
+        ReadOnlySpan<byte> needle,
+        bool foldHaystack = false)
+    {
+        // The last byte is checked first because it rejects most of the candidates that
+        // the first byte search produces.
+        var last = needle.Length - 1;
+        var lastValue = foldHaystack ? Fold(haystack[position + last]) : haystack[position + last];
+        if (lastValue != needle[last]) return false;
+        if (needle.Length == 1) return true;
+
+        var width = Vector<byte>.Count;
+        var offset = 0;
+
+        while (offset + width <= needle.Length)
+        {
+            var chunk = new Vector<byte>(haystack.Slice(position + offset, width));
+            if (foldHaystack) chunk = Fold(chunk);
+
+            if (!Vector.EqualsAll(chunk, new Vector<byte>(needle.Slice(offset, width)))) return false;
+            offset += width;
+        }
+
+        for (; offset < last; offset++)
+        {
+            var value = foldHaystack ? Fold(haystack[position + offset]) : haystack[position + offset];
+            if (value != needle[offset]) return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Folds the letters of a vector to lower case. Bytes that are not letters are left
+    /// alone, exactly like the byte wise search does.
+    /// </summary>
+    private static Vector<byte> Fold(Vector<byte> value)
+    {
+        // 'A' is subtracted from every byte. The result is at most 25 when the byte was a
+        // capital letter, and the subtraction wraps around for everything below 'A'.
+        var shifted = Vector.Subtract(value, Vector.Create((byte)'A'));
+        var isLetter = Vector.Equals(Vector.Min(shifted, Vector.Create((byte)('Z' - 'A'))), shifted);
+
+        // Only the capitals move, and they move by 32.
+        var delta = Vector.ConditionalSelect(isLetter, Vector.Create((byte)0x20), Vector.Create((byte)0));
+        return Vector.Subtract(value, delta);
+    }
+
+    /// <summary>
+    /// Folds a single byte to lower case when it is a capital letter.
+    /// </summary>
+    private static byte Fold(byte value) =>
+        value is >= (byte)'A' and <= (byte)'Z' ? (byte)(value + 32) : value;
+}

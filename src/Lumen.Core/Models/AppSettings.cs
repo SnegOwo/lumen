@@ -100,6 +100,17 @@ public sealed record AppSettings
     /// </summary>
     public int AlertCooldownSeconds { get; init; } = 120;
 
+    /// <summary>
+    /// Aggressive mode.
+    ///
+    /// It turns on the extra detection tier, the folders that matter most for a
+    /// dropper (Downloads, Startup, the temp folder), and the automatic quarantine of
+    /// high-confidence matches. It is off by default because the extra tier is
+    /// noisier than the standard rules, even though every rule in it is documented
+    /// and tested.
+    /// </summary>
+    public bool AggressiveMode { get; init; } = false;
+
     public static AppSettings Default => new();
 
     /// <summary>Clamps out-of-range or unknown values so a bad file cannot break startup.</summary>
@@ -116,8 +127,7 @@ public sealed record AppSettings
             RealtimeExcludedFolders = NormalizeFolders(RealtimeExcludedFolders),
             RealtimeSettleDelayMs = Math.Clamp(RealtimeSettleDelayMs, 0, 2000),
             RealtimeWorkerCount = Math.Clamp(RealtimeWorkerCount, 1, 8),
-            AlertCooldownSeconds = Math.Clamp(AlertCooldownSeconds, 0, 3600)
-        };
+            AlertCooldownSeconds = Math.Clamp(AlertCooldownSeconds, 0, 3600)        };
     }
 
     /// <summary>

@@ -78,7 +78,24 @@ public static class RiskWeights
         ["entropy.high-entropy-file"] = 25,
         ["entropy.encrypted-tail"] = 40,
 
-        ["risk.aggregate"] = 0
+        ["php.request-evaluation"] = 60,
+
+        ["pe.dll-sideload-candidate"] = 45,
+        ["pe.anti-analysis-checks"] = 45,
+        ["sig.shadow-copy-deletion"] = 50,
+        ["sig.ransom-note-wording"] = 55,
+        ["script.bulk-file-rename"] = 45,
+        ["script.mining-configuration"] = 50,
+        ["office.dde-field"] = 45,
+        ["office.template-relationship"] = 30,
+        ["script.powershell-download-cradle"] = 45,
+        ["pe.protector-section-name"] = 55,
+        ["pe.no-import-table"] = 25,
+        ["pe.entry-point-outside-section"] = 40,
+        ["pe.unusual-section-name"] = 25,
+
+        ["risk.aggregate"] = 0,
+        ["risk.combination-signals"] = 0
     };
 
     /// <summary>

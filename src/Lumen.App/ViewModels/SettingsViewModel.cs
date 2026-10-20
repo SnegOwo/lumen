@@ -184,6 +184,22 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel, IDispo
     }
 
     /// <summary>
+    /// Aggressive mode: the extra detection rules, the folders a dropper lands in,
+    /// no waiting before an inspection, and the automatic quarantine of a
+    /// high-confidence match.
+    /// </summary>
+    public bool AggressiveMode
+    {
+        get => _services.Settings.AggressiveMode;
+        set
+        {
+            if (value == AggressiveMode) return;
+            Save(settings => settings with { AggressiveMode = value });
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
     /// How long the real-time monitor waits for a file to stop changing before it
     /// inspects it. Lower means a faster answer.
     /// </summary>
@@ -411,6 +427,7 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel, IDispo
             nameof(RealtimeAutoKill),
             nameof(AlertCooldownSeconds),
             nameof(AlertCooldownText),
+            nameof(AggressiveMode),
             nameof(RealtimeStatusText),
             nameof(RemediationEnabled),
             nameof(DetectionAlertEnabled),

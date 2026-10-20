@@ -23,6 +23,12 @@
         <Setter Property="Height" Value="8" />
         <Setter Property="Background" Value="{DynamicResource Progress.Track}" />
         <Setter Property="Foreground" Value="{DynamicResource Progress.Fill}" />
+        <!-- IMPORTANT: IsIndeterminate starts a storyboard that repeats FOREVER, and
+             the storyboard only stops when IsIndeterminate goes back to false. Setting
+             IsIndeterminate="True" statically in a view therefore burns CPU for the
+             whole life of the application, even when the bar is inside a collapsed
+             panel and nobody can see it. Always bind IsIndeterminate to the same
+             property that decides whether the bar is visible. -->
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ProgressBar">

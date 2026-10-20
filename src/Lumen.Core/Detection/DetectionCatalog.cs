@@ -347,6 +347,158 @@ public static class DetectionCatalog
             "Combined risk score",
             "Adds up the weight of every rule that fired and lists each contribution, so the score is never shown without its reasons.",
             FindingCategory.Heuristic,
+            Confidence.Medium),
+
+        // Standard tier, added because the shape it looks for is very rare in healthy
+        // software: a page that hands a value taken from the request to a function that
+        // can run code.
+        new(
+            "php.request-evaluation",
+            "Request data passed to a code or command function",
+            "A PHP page takes a value from the request and hands it to a function that evaluates code or runs a command. Ordinary pages read the request and print it back out instead.",
+            FindingCategory.Behavior,
+            Confidence.Medium),
+
+        // Aggressive tier. These rules only run when the user has turned on aggressive
+        // mode. They catch real techniques, but each of them is also something ordinary
+        // software can do, so they are kept apart from the rules above.
+        new(
+            "pe.dll-sideload-candidate",
+            "Library loaded from the program's own folder",
+            "The program loads a library that sits next to it, or the file itself is named after a Windows library and sits in a folder the user can write to. A program in such a folder can be made to load a library that was put there.",
+            FindingCategory.Heuristic,
+            Confidence.Medium),
+        new(
+            "pe.anti-analysis-checks",
+            "Checks for analysis tools and virtual machines",
+            "The file looks for a debugger and also looks for a virtual machine or a sandbox. A program that checks both is trying to behave differently depending on where it runs.",
+            FindingCategory.Behavior,
+            Confidence.Medium),
+        new(
+            "sig.shadow-copy-deletion",
+            "Command that deletes volume shadow copies",
+            "The file contains a command that deletes volume shadow copies or turns off recovery. System administrators use these commands when they clear disk space.",
+            FindingCategory.Behavior,
+            Confidence.Medium),
+        new(
+            "sig.ransom-note-wording",
+            "Wording used in a ransom note",
+            "The text says that files have been encrypted and asks for payment. The wording alone is not proof of anything, but this shape does not appear in ordinary documents.",
+            FindingCategory.Behavior,
+            Confidence.Medium),
+        new(
+            "script.bulk-file-rename",
+            "Script renames many files at once",
+            "The script walks a set of files, looks at their extensions and renames them. Backup and housekeeping scripts do this too, so the context decides what it means.",
+            FindingCategory.Behavior,
+            Confidence.Medium),
+        new(
+            "script.mining-configuration",
+            "Mining pool or wallet settings",
+            "The file points at a mining pool, carries a wallet address, or carries the switches a mining program takes. None of these appear in ordinary software.",
+            FindingCategory.Behavior,
+            Confidence.Medium),
+        new(
+            "office.dde-field",
+            "Document carries a DDE field",
+            "The document holds a field that asks another program to run a command. Word and Excel can be told to do this by a document, and plenty of legitimate documents use links that work the same way.",
+            FindingCategory.Behavior,
+            Confidence.Medium),
+        new(
+            "office.template-relationship",
+            "Document points at a template outside itself",
+            "The package links to a template that is not stored inside it, so opening the document can pull in content from somewhere else.",
+            FindingCategory.Heuristic,
+            Confidence.Low),
+        new(
+            "script.powershell-download-cradle",
+            "Download and execution in one script",
+            "The script fetches something and then runs it, using an alias, a pipe or an encoded blob. Installers and deployment scripts fetch and run things as well.",
+            FindingCategory.Behavior,
+            Confidence.Medium),
+        new(
+            "pe.protector-section-name",
+            "Section named after a protector",
+            "The executable contains a section named after a commercial protector or crypter. Protected files are deliberately hard to read.",
+            FindingCategory.Behavior,
+            Confidence.High),
+        new(
+            "pe.no-import-table",
+            "Executable with no import table",
+            "The executable declares no import table at all, so the functions it uses are resolved when it runs. Packers do this, and so do a few unusual but legitimate programs.",
+            FindingCategory.Behavior,
+            Confidence.Low),
+        new(
+            "pe.entry-point-outside-section",
+            "Entry point outside an executable section",
+            "The program starts at an address that is not inside a section marked as code. The header and the sections do not agree with each other.",
+            FindingCategory.Behavior,
+            Confidence.Medium),
+        new(
+            "pe.unusual-section-name",
+            "Section with an unusual name",
+            "A section of the executable has a name built from characters that ordinary compilers do not use.",
+            FindingCategory.Behavior,
+            Confidence.Low),
+        new(
+            "risk.combination-signals",
+            "Several weak signals on the same file",
+            "Several signals that are each weak on their own point at the same file. The contributions and the weights that produced the total are listed so a reader can judge them.",
+            FindingCategory.Heuristic,
             Confidence.Medium)
     ];
+
+    /// <summary>
+    /// The identifiers of the rules that belong to the AGGRESSIVE tier. These rules only
+    /// run when the user has switched aggressive mode on, because they are noisier than the
+    /// standard rules.
+    /// </summary>
+    /// <remarks>
+    /// The set is kept here, next to the catalogue, so the Settings page has a single
+    /// place to ask whether a rule is an aggressive one.
+    /// </remarks>
+    public static IReadOnlySet<string> AggressiveRuleIds { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "pe.dll-sideload-candidate",
+        "pe.anti-analysis-checks",
+        "sig.shadow-copy-deletion",
+        "sig.ransom-note-wording",
+        "script.bulk-file-rename",
+        "script.mining-configuration",
+        "office.dde-field",
+        "office.template-relationship",
+        "script.powershell-download-cradle",
+        "pe.protector-section-name",
+        "pe.no-import-table",
+        "pe.entry-point-outside-section",
+        "pe.unusual-section-name",
+        "risk.combination-signals"
+    };
+
+    /// <summary>
+    /// Returns true when the rule belongs to the AGGRESSIVE tier.
+    /// </summary>
+    /// <param name="ruleId">The identifier of the rule.</param>
+    public static bool IsAggressive(string? ruleId) =>
+        !string.IsNullOrWhiteSpace(ruleId) && AggressiveRuleIds.Contains(ruleId.Trim());
+
+    /// <summary>
+    /// Every catalogue entry together with the tier it belongs to. The Settings page uses
+    /// this list so it can tell the user which rules only run in aggressive mode.
+    /// </summary>
+    public static IReadOnlyList<CatalogRule> RulesWithTier { get; } =
+        Rules.Select(rule => new CatalogRule(rule, IsAggressive(rule.Id))).ToArray();
+
+    /// <summary>
+    /// Only the entries that belong to the AGGRESSIVE tier.
+    /// </summary>
+    public static IReadOnlyList<CatalogRule> AggressiveRules { get; } =
+        RulesWithTier.Where(entry => entry.IsAggressive).ToArray();
 }
+
+/// <summary>
+/// One catalogue entry together with the tier it belongs to.
+/// </summary>
+/// <param name="Rule">The description of the rule shown to the user.</param>
+/// <param name="IsAggressive">True when the rule only runs in aggressive mode.</param>
+public sealed record CatalogRule(DetectionRuleSummary Rule, bool IsAggressive);

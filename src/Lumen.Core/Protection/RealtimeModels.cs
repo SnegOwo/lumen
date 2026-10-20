@@ -64,6 +64,17 @@ public sealed record RealtimeMonitorStats(
     public int ConfiguredFolderCount { get; init; }
 
     /// <summary>
+    /// True when the monitor runs in aggressive mode.
+    ///
+    /// <para>
+    /// Aggressive mode watches more folders and inspects more eagerly, so it uses more
+    /// CPU. The interface shows this together with
+    /// <see cref="WatchedFolderCount"/>, so the cost is visible instead of surprising.
+    /// </para>
+    /// </summary>
+    public bool IsAggressiveMode { get; init; }
+
+    /// <summary>
     /// How many paths the monitor is still dealing with: the paths that are waiting for their
     /// settle deadline, the paths that are ready to be inspected and the paths a worker is
     /// reading right now. A number above zero means the monitor is busy, and the UI can say
