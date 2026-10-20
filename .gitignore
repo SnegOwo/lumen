@@ -7,3 +7,6 @@ dist/
 TestResults/
 artifacts/
 .sandbox/
+
+# The distributable is a build artifact. Rebuild it with scripts\package.ps1.
+Lumen-*.zip

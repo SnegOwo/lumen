@@ -175,6 +175,10 @@ public sealed class DetectionAlertWindow : Window
             Close();
         };
 
+        // The destructive action must never hold the keyboard focus. If it did, a
+        // stray Enter key would quarantine a file that nobody had confirmed.
+        dismiss.Focus();
+
         KeyDown += (_, args) =>
         {
             if (args.Key == Key.Escape) Close();
