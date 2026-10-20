@@ -16,16 +16,7 @@ public sealed record TextNoun(
     string English,
     string EnglishPlural,
     string French,
-    string FrenchPlural)
-{
-    /// <summary>The form to use for the given count.</summary>
-    public string Select(bool plural) =>
-        plural ? EnglishPlural : English;
-
-    /// <summary>The French form to use for the given count.</summary>
-    public string SelectFrench(bool plural) =>
-        plural ? FrenchPlural : French;
-}
+    string FrenchPlural);
 
 /// <summary>
 /// Every user-facing string that Lumen builds at run time, in English and in French.
@@ -98,6 +89,19 @@ public static class Text
             ? "1 " + noun.English
             : value.ToString("N0", CultureInfo.CurrentCulture) + " " + noun.EnglishPlural;
     }
+
+    /// <summary>
+    /// Formats a count with an explicit singular and plural form.
+    ///
+    /// The plural form carries any adjective with it, which is what French needs:
+    /// "1 problème potentiel détecté" but "3 problèmes potentiels détectés". Keeping
+    /// the whole phrase in one place is the only way to get that right without a
+    /// grammar engine.
+    /// </summary>
+    private static string N(long value, string singular, string plural) =>
+        value == 1
+            ? "1 " + singular
+            : value.ToString("N0", CultureInfo.CurrentCulture) + " " + plural;
 
     // ----------------------------------------------------------------------
     // Countable nouns
@@ -173,11 +177,12 @@ public static class Text
     // ----------------------------------------------------------------------
 
     /// <summary>The product name. It is not translated.</summary>
-    public static string AppName => "Lumen";
+    /// <summary>The title of the main window.</summary>
+    public static string WindowTitle => Pick(
+        "Lumen — Local file inspection",
+        "Lumen — Inspection locale des fichiers");
 
     /// <summary>The one-line description of the product.</summary>
-    public static string Tagline => Pick("Local file inspection", "Inspection locale des fichiers");
-
     /// <summary>Names the kind of signal behind a finding.</summary>
     public static string Category(FindingCategory category) => category switch
     {
@@ -209,7 +214,7 @@ public static class Text
     };
 
     /// <summary>How confident the rule engine is.</summary>
-    public static string Confidence(Confidence confidence) => confidence switch
+    public static string ConfidenceLabel(Confidence confidence) => confidence switch
     {
         Confidence.Definitive => Pick("Definitive", "Définitif"),
         Confidence.High => Pick("High confidence", "Confiance élevée"),
@@ -261,24 +266,10 @@ public static class Text
     public static string NavSettings => Pick("Settings", "Réglages");
 
     /// <summary>The sidebar workspace heading.</summary>
-    public static string NavWorkspace => Pick("WORKSPACE", "ESPACE DE TRAVAIL");
-
     /// <summary>The sidebar product strapline.</summary>
-    public static string NavStrapline => Pick("LOCAL FILE INSPECTION", "INSPECTION LOCALE DES FICHIERS");
-
     /// <summary>The sidebar capability card title.</summary>
-    public static string NavOnDemandOnly => Pick("On-demand only", "À la demande uniquement");
-
     /// <summary>The sidebar capability card body.</summary>
-    public static string NavOnDemandBody => Pick(
-        "No driver, no background protection, no cloud uploads.",
-        "Aucun pilote, aucune protection en arrière-plan, aucun envoi dans le cloud.");
-
     /// <summary>The sidebar footer note.</summary>
-    public static string NavKeepDefender => Pick(
-        "Keep Microsoft Defender enabled.",
-        "Laissez Microsoft Defender activé.");
-
     /// <summary>The status bar label when nothing is running.</summary>
     public static string StatusReady => Pick("Ready", "Prêt");
 
@@ -306,6 +297,31 @@ public static class Text
     public static string StatusOnDemand => Pick(
         "On-demand scanning",
         "Analyse à la demande");
+
+    /// <summary>The title of the "stop the scan and exit" confirmation.</summary>
+    public static string ExitStopScanTitle => Pick(
+        "Stop the scan and exit?",
+        "Arrêter l'analyse et quitter ?");
+
+    /// <summary>The body of the "stop the scan and exit" confirmation.</summary>
+    public static string ExitStopScanBody => Pick(
+        "A scan is still running. Exiting will stop it before it finishes. Results collected so far are kept, and no files will be changed.",
+        "Une analyse est encore en cours. Quitter l'arrêtera avant sa fin. Les résultats déjà collectés sont conservés et aucun fichier ne sera modifié.");
+
+    /// <summary>The confirmation button of the "stop the scan and exit" dialog.</summary>
+    public static string ExitStopScanConfirm => Pick(
+        "Stop scan and exit",
+        "Arrêter l'analyse et quitter");
+
+    /// <summary>The notification shown when the window is hidden instead of closed.</summary>
+    public static string TrayStillRunningTitle => Pick(
+        "Lumen is still running",
+        "Lumen est toujours en cours d'exécution");
+
+    /// <summary>The body of the "still running" notification.</summary>
+    public static string TrayStillRunningBody => Pick(
+        "Use the notification-area icon to reopen Lumen or exit. You can change this behavior in Settings.",
+        "Utilisez l'icône de la zone de notification pour rouvrir Lumen ou quitter. Vous pouvez changer ce comportement dans les réglages.");
 
     /// <summary>The badge text of a navigation entry that has quarantined items.</summary>
     public static string NavBadge(string title, int count) => Pick(
@@ -371,30 +387,12 @@ public static class Text
         "Les fichiers restent en lecture seule tant que vous n'avez pas confirmé une mise en quarantaine.");
 
     /// <summary>The dashboard button that opens the full scan options.</summary>
-    public static string DashboardFullScan => Pick("Full scan", "Analyse complète");
-
     /// <summary>The dashboard button that starts a quick scan.</summary>
-    public static string DashboardQuickScan => Pick("Quick scan", "Analyse rapide");
-
     /// <summary>The dashboard button that opens the folder picker.</summary>
-    public static string DashboardChooseFolder => Pick("Choose a folder", "Choisir un dossier");
-
     /// <summary>The dashboard button that opens the quarantine page.</summary>
-    public static string DashboardOpenQuarantine => Pick("Open quarantine", "Ouvrir la quarantaine");
-
     /// <summary>The dashboard button that opens the history page.</summary>
-    public static string DashboardViewHistory => Pick("View history", "Voir l'historique");
-
     /// <summary>The dashboard button that opens Windows Security.</summary>
-    public static string DashboardOpenWindowsSecurity => Pick(
-        "Open Windows Security",
-        "Ouvrir la sécurité Windows");
-
     /// <summary>The dashboard button that refreshes the Defender status.</summary>
-    public static string DashboardRefreshDefender => Pick(
-        "Refresh Defender status",
-        "Actualiser l'état de Defender");
-
     /// <summary>The title of the real-time protection card.</summary>
     public static string RealtimeTitleOn => Pick(
         "Real-time protection is on",
@@ -418,7 +416,7 @@ public static class Text
     /// <summary>How many folders are actually being watched.</summary>
     public static string RealtimeWatching(int watched, int configured) => Pick(
         $"Watching {watched} of {configured} folders",
-        $"{watched} dossier(s) surveillé(s) sur {configured}");
+        N(watched, "dossier surveillé", "dossiers surveillés") + $" sur {configured}");
 
     /// <summary>The warning shown when the monitor does not cover everything.</summary>
     public static string RealtimeDegraded => Pick(
@@ -427,18 +425,18 @@ public static class Text
 
     /// <summary>How many paths are waiting in the inspection queue.</summary>
     public static string RealtimeQueue(int depth) => Pick(
-        $"{depth} path(s) queued",
-        $"{depth} chemin(s) en file d'attente");
+        N(depth, "path queued", "paths queued"),
+        N(depth, "chemin en file d'attente", "chemins en file d'attente"));
 
     /// <summary>How many paths were dropped because the queue was full.</summary>
     public static string RealtimeDropped(long dropped) => Pick(
-        $"{dropped} path(s) dropped",
-        $"{dropped} chemin(s) abandonné(s)");
+        N(dropped, "path dropped", "paths dropped"),
+        N(dropped, "chemin abandonné", "chemins abandonnés"));
 
     /// <summary>How many times a watcher failed and had to be rebuilt.</summary>
     public static string RealtimeWatcherFailures(long failures) => Pick(
-        $"{failures} watcher failure(s)",
-        $"{failures} échec(s) de surveillance");
+        N(failures, "watcher failure", "watcher failures"),
+        N(failures, "échec de surveillance", "échecs de surveillance"));
 
     /// <summary>The last error reported by the monitor.</summary>
     public static string RealtimeLastError(string error) => Pick(
@@ -450,8 +448,9 @@ public static class Text
         Pick($"{files:N0} checked", $"{files:N0} vérifiés");
 
     /// <summary>The "matches" counter of the real-time card.</summary>
-    public static string RealtimeMatches(long matches) =>
-        Pick($"{matches:N0} matches", $"{matches:N0} correspondance(s)");
+    public static string RealtimeMatches(long matches) => Pick(
+        N(matches, "match", "matches"),
+        N(matches, "correspondance", "correspondances"));
 
     /// <summary>The real-time card when nothing was detected yet.</summary>
     public static string RealtimeNothingYet => Pick(
@@ -463,95 +462,43 @@ public static class Text
         $"Last match: {path} · {when}",
         $"Dernière correspondance : {path} · {when}");
 
+    /// <summary>The status of a scan that was never run.</summary>
+    public static string ScanNotRun => Pick("Not run", "Jamais lancée");
+
+    /// <summary>The "finished" line of the last-scan card.</summary>
+    public static string HistoryFinished(string when) => Pick(
+        $"Finished {when}",
+        $"Terminée {when}");
+
     /// <summary>The label of the last-scan card.</summary>
-    public static string DashboardLastScan => Pick("Last scan", "Dernière analyse");
-
     /// <summary>The label of the quarantine card.</summary>
-    public static string DashboardQuarantine => Pick("Quarantine", "Quarantaine");
-
     /// <summary>The label of the Defender card.</summary>
-    public static string DashboardDefender => Pick("Microsoft Defender", "Microsoft Defender");
-
     /// <summary>The title of the recent-activity card.</summary>
-    public static string DashboardRecentActivity => Pick("Recent activity", "Activité récente");
-
     /// <summary>The button that shows the whole history.</summary>
-    public static string DashboardViewAll => Pick("View all", "Tout afficher");
-
     /// <summary>The empty state of the recent-activity card.</summary>
-    public static string DashboardNoActivity => Pick(
-        "No scans yet. Your scan results will appear here, stored only on this device.",
-        "Aucune analyse pour l'instant. Vos résultats apparaîtront ici, stockés uniquement sur cet appareil.");
-
     /// <summary>The button that starts a quick scan from the empty activity card.</summary>
     public static string DashboardRunQuickScan => Pick("Run a quick scan", "Lancer une analyse rapide");
 
     /// <summary>The title of the "what Lumen checks" card.</summary>
-    public static string DashboardChecksTitle => Pick("What Lumen checks", "Ce que Lumen vérifie");
-
     /// <summary>The subtitle of the "what Lumen checks" card.</summary>
-    public static string DashboardChecksSubtitle => Pick(
-        "Small, documented rules — not a malware signature database.",
-        "Des règles peu nombreuses et documentées, pas une base de signatures de logiciels malveillants.");
-
     /// <summary>The EICAR bullet title.</summary>
-    public static string DashboardCheckEicarTitle => Pick("EICAR test signature", "Signature de test EICAR");
-
     /// <summary>The EICAR bullet body.</summary>
-    public static string DashboardCheckEicarBody => Pick(
-        "Verifies scanner plumbing with the standard harmless test file.",
-        "Vérifie la mécanique de l'analyse avec le fichier de test standard, sans danger.");
-
     /// <summary>The script heuristics bullet title.</summary>
-    public static string DashboardCheckScriptTitle => Pick("Script heuristics", "Heuristiques de script");
-
     /// <summary>The script heuristics bullet body.</summary>
-    public static string DashboardCheckScriptBody => Pick(
-        "Looks for a few risky token combinations in readable scripts.",
-        "Recherche quelques combinaisons de mots-clés risquées dans les scripts lisibles.");
-
     /// <summary>The deceptive-name bullet title.</summary>
-    public static string DashboardCheckNameTitle => Pick("Deceptive file names", "Noms de fichiers trompeurs");
-
     /// <summary>The deceptive-name bullet body.</summary>
-    public static string DashboardCheckNameBody => Pick(
-        "Flags double extensions and bidirectional override characters.",
-        "Signale les doubles extensions et les caractères de contrôle bidirectionnel.");
-
     /// <summary>The button that opens the rule catalogue.</summary>
-    public static string DashboardReviewRules => Pick("Review detection rules", "Examiner les règles de détection");
-
     /// <summary>The disclaimer under the dashboard.</summary>
-    public static string DashboardFooter => Pick(
-        "Microsoft Defender should remain your primary antivirus. Lumen's real-time protection is a user-mode folder watcher that runs only while the app is open.",
-        "Microsoft Defender doit rester votre antivirus principal. La surveillance en temps réel de Lumen est un observateur de dossiers en mode utilisateur, actif uniquement tant que l'application est ouverte.");
-
     // ----------------------------------------------------------------------
     // Scan page
     // ----------------------------------------------------------------------
 
     /// <summary>The scan page title.</summary>
-    public static string ScanTitle => Pick("Scan", "Analyse");
-
     /// <summary>The scan page subtitle.</summary>
-    public static string ScanSubtitle => Pick(
-        "Inspect files on this device. Nothing is uploaded, and nothing changes until you confirm a quarantine.",
-        "Inspectez les fichiers de cet appareil. Rien n'est envoyé, et rien ne change avant que vous confirmiez une mise en quarantaine.");
-
     /// <summary>The button that clears the current results.</summary>
-    public static string ScanClearResults => Pick("Clear results", "Effacer les résultats");
-
     /// <summary>The title of the scope selector.</summary>
-    public static string ScanScopeTitle => Pick("Choose a scope", "Choisissez une portée");
-
     /// <summary>The explanation of the scope selector.</summary>
-    public static string ScanScopeSubtitle => Pick(
-        "Quick covers the folders most people care about. Full profile is broader but still skips system and app-data locations.",
-        "L'analyse rapide couvre les dossiers qui intéressent la plupart des gens. Le profil complet est plus large, mais ignore toujours les dossiers système et les données d'application.");
-
     /// <summary>The read-only badge.</summary>
-    public static string ScanReadOnly => Pick("READ-ONLY", "LECTURE SEULE");
-
     /// <summary>The quick scope card title.</summary>
     public static string ScanScopeQuickTitle => Pick("Quick", "Rapide");
 
@@ -605,16 +552,8 @@ public static class Text
         "Analyse d'un fichier unique");
 
     /// <summary>The label of the chosen location.</summary>
-    public static string ScanLocationLabel => Pick("Location", "Emplacement");
-
     /// <summary>The button that opens the folder or file picker.</summary>
-    public static string ScanChoose => Pick("Choose…", "Choisir…");
-
     /// <summary>The note under the scope selector.</summary>
-    public static string ScanQuarantineNote => Pick(
-        "Quarantine is a separate, confirmed action.",
-        "La mise en quarantaine est une action distincte, qui doit être confirmée.");
-
     /// <summary>The description of the quick scope.</summary>
     public static string ScanScopeQuickDescription => Pick(
         "Checks Desktop, Documents and Downloads with Lumen's small set of transparent rules.",
@@ -652,19 +591,11 @@ public static class Text
     public static string ScanPathNoFile => Pick("No file selected yet", "Aucun fichier sélectionné");
 
     /// <summary>The note under the live progress strip.</summary>
-    public static string ScanCancelNote => Pick(
-        "You can cancel at any time. Files already inspected are left untouched.",
-        "Vous pouvez annuler à tout moment. Les fichiers déjà inspectés restent inchangés.");
-
     /// <summary>The label of the inspected counter.</summary>
     public static string ScanInspected => Pick("Inspected", "Inspectés");
 
     /// <summary>The label of the files-inspected counter.</summary>
-    public static string ScanFilesInspected => Pick("Files inspected", "Fichiers inspectés");
-
     /// <summary>The label of the findings counter.</summary>
-    public static string ScanFindings => Pick("Findings", "Détections");
-
     /// <summary>The label of the skipped counter.</summary>
     public static string ScanSkipped => Pick("Skipped", "Ignorés");
 
@@ -672,52 +603,20 @@ public static class Text
     public static string ScanWarnings => Pick("Warnings", "Avertissements");
 
     /// <summary>The label of the elapsed counter.</summary>
-    public static string ScanElapsed => Pick("Elapsed", "Durée");
-
     /// <summary>The checkbox that selects every finding.</summary>
-    public static string ScanSelectAll => Pick("Select all", "Tout sélectionner");
-
     /// <summary>The note above the findings list.</summary>
-    public static string ScanReviewNote => Pick(
-        "Review each match before quarantining. Lumen never changes a file without your confirmation.",
-        "Examinez chaque correspondance avant de la mettre en quarantaine. Lumen ne modifie jamais un fichier sans votre confirmation.");
-
     /// <summary>The size field label.</summary>
-    public static string ScanSize => Pick("Size", "Taille");
-
     /// <summary>The detection-date field label.</summary>
-    public static string ScanDetected => Pick("Detected", "Détecté");
-
     /// <summary>The button that copies the path.</summary>
-    public static string ScanCopyPath => Pick("Copy path", "Copier le chemin");
-
     /// <summary>The button that shows the file in Explorer.</summary>
-    public static string ScanShowInExplorer => Pick("Show in Explorer", "Afficher dans l'Explorateur");
-
     /// <summary>The empty state of the detail pane.</summary>
-    public static string ScanSelectFinding => Pick(
-        "Select a finding to review its details.",
-        "Sélectionnez une détection pour afficher ses détails.");
-
     /// <summary>The empty state of the results card.</summary>
-    public static string ScanNoMatchesTitle => Pick("No matches found", "Aucune correspondance");
-
     /// <summary>The body of the empty results card.</summary>
-    public static string ScanNoMatchesMessage => Pick(
-        "Lumen's limited rules did not match any inspected file. That does not prove the files are safe. Keep Microsoft Defender enabled and review skipped items below.",
-        "Les règles limitées de Lumen n'ont correspondant à aucun fichier inspecté. Cela ne prouve pas que les fichiers sont sûrs. Gardez Microsoft Defender activé et examinez les éléments ignorés ci-dessous.");
-
     /// <summary>The button that restarts the scan from the empty results card.</summary>
     public static string ScanAgain => Pick("Scan again", "Analyser à nouveau");
 
     /// <summary>The disclaimer under the scan page.</summary>
-    public static string ScanFooter => Pick(
-        "Lumen reads a limited prefix of each file for content checks. It never uploads file contents and never bypasses Windows permissions.",
-        "Lumen ne lit qu'un début limité de chaque fichier pour les vérifications de contenu. Il n'envoie jamais le contenu des fichiers et ne contourne jamais les permissions de Windows.");
-
     /// <summary>The remediation action offered on a finding.</summary>
-    public static string ScanClean => Pick("Clean", "Nettoyer");
-
     /// <summary>The phase shown when the scan page is idle.</summary>
     public static string ScanPhaseReady => Pick("Ready when you are", "Prêt quand vous l'êtes");
 
@@ -769,8 +668,8 @@ public static class Text
 
     /// <summary>The toggle that expands the skipped items.</summary>
     public static string ScanShowSkipped(int count) => Pick(
-        $"Show {count:N0} skipped item(s)",
-        $"Afficher {count:N0} élément(s) ignoré(s)");
+        "Show " + N(count, "skipped item", "skipped items"),
+        "Afficher " + N(count, "élément ignoré", "éléments ignorés"));
 
     /// <summary>The toggle that collapses the skipped items.</summary>
     public static string ScanHideSkipped => Pick("Hide skipped items", "Masquer les éléments ignorés");
@@ -806,8 +705,8 @@ public static class Text
 
     /// <summary>The summary title when findings were reported.</summary>
     public static string ScanSummaryFound(int count) => Pick(
-        $"{count} potential issue(s) found",
-        $"{count} problème(s) potentiel(s) détecté(s)");
+        N(count, "potential issue found", "potential issues found"),
+        N(count, "problème potentiel détecté", "problèmes potentiels détectés"));
 
     /// <summary>The summary body when findings were reported.</summary>
     public static string ScanSummaryFoundBody => Pick(
@@ -906,21 +805,21 @@ public static class Text
 
     /// <summary>The banner body while files are being quarantined.</summary>
     public static string ScanQuarantineRunningBody(int count) => Pick(
-        $"Encrypting {count} file(s). Keep Lumen open until this finishes.",
-        $"Chiffrement de {count} fichier(s). Gardez Lumen ouvert jusqu'à la fin.");
+        "Encrypting " + N(count, "file", "files") + ". Keep Lumen open until this finishes.",
+        "Chiffrement de " + N(count, "fichier", "fichiers") + ". Gardez Lumen ouvert jusqu'à la fin.");
 
     /// <summary>The banner title when the quarantine finished.</summary>
     public static string ScanQuarantineDoneTitle => Pick("Quarantine finished", "Mise en quarantaine terminée");
 
     /// <summary>The banner body when the quarantine finished.</summary>
     public static string ScanQuarantineDoneBody(int count) => Pick(
-        $"{count} file(s) moved into the encrypted vault.",
-        $"{count} fichier(s) déplacé(s) dans le coffre chiffré.");
+        N(count, "file moved into the encrypted vault", "files moved into the encrypted vault"),
+        N(count, "fichier déplacé dans le coffre chiffré", "fichiers déplacés dans le coffre chiffré"));
 
     /// <summary>The banner body when an original could not be removed.</summary>
     public static string ScanQuarantineRetainedBody(int count) => Pick(
-        $"The encrypted copy was preserved for {count} item(s), but the original could not be removed. Close any program using it and delete it manually.",
-        $"La copie chiffrée a été conservée pour {count} élément(s), mais l'original n'a pas pu être supprimé. Fermez le programme qui l'utilise et supprimez-le à la main.");
+        "The encrypted copy was preserved for " + N(count, "item", "items") + ", but the original could not be removed. Close any program using it and delete it manually.",
+        "La copie chiffrée a été conservée pour " + N(count, "élément", "éléments") + ", mais l'original n'a pas pu être supprimé. Fermez le programme qui l'utilise et supprimez-le à la main.");
 
     /// <summary>The banner title when the quarantine finished with problems.</summary>
     public static string ScanQuarantineWarnTitle => Pick(
@@ -931,7 +830,6 @@ public static class Text
     public static string ScanQuarantineWarnBody(int quarantined, int skipped, int failed) => Pick(
         $"{quarantined} quarantined, {skipped} skipped, {failed} failed. Originals were kept for every item that was not quarantined.",
         $"{quarantined} en quarantaine, {skipped} ignoré(s), {failed} en échec. Les originaux ont été conservés pour chaque élément non mis en quarantaine.");
-
     /// <summary>The title of the quarantine results dialog.</summary>
     public static string ScanQuarantineResultsTitle => Pick("Quarantine results", "Résultats de la quarantaine");
 
@@ -1015,8 +913,8 @@ public static class Text
 
     /// <summary>The tray notification body of a scan with findings.</summary>
     public static string ScanTrayFoundBody(int count) => Pick(
-        $"{count} potential issue(s) found. Nothing was changed.",
-        $"{count} problème(s) potentiel(s) détecté(s). Rien n'a été modifié.");
+        N(count, "potential issue found", "potential issues found") + ". Nothing was changed.",
+        N(count, "problème potentiel détecté", "problèmes potentiels détectés") + ". Rien n'a été modifié.");
 
     /// <summary>The tray notification body of a clean scan.</summary>
     public static string ScanTrayCleanBody => Pick(
@@ -1028,88 +926,36 @@ public static class Text
     // ----------------------------------------------------------------------
 
     /// <summary>The quarantine page title.</summary>
-    public static string QuarantineTitle => Pick("Quarantine", "Quarantaine");
-
     /// <summary>The quarantine page subtitle.</summary>
-    public static string QuarantineSubtitle => Pick(
-        "Encrypted, integrity-checked copies that only you can restore or delete.",
-        "Copies chiffrées et vérifiées, que vous seul pouvez restaurer ou supprimer.");
-
     /// <summary>The button that opens the vault folder.</summary>
-    public static string QuarantineOpenVault => Pick("Open vault folder", "Ouvrir le dossier du coffre");
-
     /// <summary>The tooltip of the refresh button.</summary>
-    public static string QuarantineRefreshVault => Pick("Refresh the vault", "Actualiser le coffre");
-
     /// <summary>The title of the "vault data could not be read" banner.</summary>
-    public static string QuarantineReadWarningTitle => Pick(
-        "Some quarantine data could not be read",
-        "Certaines données de quarantaine n'ont pas pu être lues");
-
     /// <summary>The title of the empty vault card.</summary>
-    public static string QuarantineEmptyTitle => Pick("The vault is empty", "Le coffre est vide");
-
     /// <summary>The body of the empty vault card.</summary>
     public static string QuarantineEmptyBody => Pick(
         "Files you choose to quarantine are encrypted with AES-256, integrity-checked, and kept here until you restore or delete them.",
         "Les fichiers que vous mettez en quarantaine sont chiffrés en AES-256, vérifiés, et conservés ici jusqu'à ce que vous les restauriez ou les supprimiez.");
 
     /// <summary>The button that goes to the scan page from the empty vault.</summary>
-    public static string QuarantineRunScan => Pick("Run a scan", "Lancer une analyse");
-
     /// <summary>The title of the vault list.</summary>
-    public static string QuarantineEncryptedItems => Pick("Encrypted items", "Éléments chiffrés");
-
     /// <summary>The note shown when the original file still exists.</summary>
-    public static string QuarantineOriginalExists => Pick(
-        "The original file still exists at its original location. It was not removed when the copy was quarantined.",
-        "Le fichier original existe toujours à son emplacement d'origine. Il n'a pas été supprimé lors de la mise en quarantaine de la copie.");
-
     /// <summary>The label of the note block.</summary>
     public static string QuarantineNote => Pick("Note", "Note");
 
     /// <summary>The label of the quarantine date.</summary>
-    public static string QuarantineDate => Pick("Quarantined", "Mis en quarantaine");
-
     /// <summary>The label of the size field.</summary>
-    public static string QuarantineSize => Pick("Size", "Taille");
-
     /// <summary>The button that restores the file.</summary>
     public static string QuarantineRestore => Pick("Restore", "Restaurer");
 
     /// <summary>The button that restores the file somewhere else.</summary>
-    public static string QuarantineRestoreTo => Pick("Restore to…", "Restaurer vers…");
-
     /// <summary>The button that deletes the encrypted copy.</summary>
-    public static string QuarantineDelete => Pick("Delete permanently", "Supprimer définitivement");
-
     /// <summary>The button that reveals the original file.</summary>
-    public static string QuarantineShowOriginal => Pick("Show original", "Afficher l'original");
-
     /// <summary>The button that copies the original path.</summary>
-    public static string QuarantineCopyPath => Pick("Copy original path", "Copier le chemin d'origine");
-
     /// <summary>The explanation of what restoring does.</summary>
-    public static string QuarantineRestoreExplainer => Pick(
-        "Restore decrypts the copy, verifies its SHA-256 hash, and only then writes the file. The encrypted copy is kept if verification fails.",
-        "La restauration déchiffre la copie, vérifie son empreinte SHA-256, puis seulement écrit le fichier. La copie chiffrée est conservée si la vérification échoue.");
-
     /// <summary>The empty state of the detail pane.</summary>
-    public static string QuarantineSelectItem => Pick(
-        "Select an item to review it",
-        "Sélectionnez un élément pour l'examiner");
-
     /// <summary>The technical note about the vault encryption.</summary>
-    public static string QuarantineVaultTech => Pick(
-        "AES-256-CBC encryption · HMAC-SHA256 integrity · per-user DPAPI-protected keys",
-        "Chiffrement AES-256-CBC · intégrité HMAC-SHA256 · clés protégées par DPAPI par utilisateur");
-
     /// <summary>The button that opens the vault folder in the footer.</summary>
-    public static string QuarantineOpenFolder => Pick("Open folder", "Ouvrir le dossier");
-
     /// <summary>The remediation action offered on a quarantine item.</summary>
-    public static string QuarantineCleanFile => Pick("Clean the file", "Nettoyer le fichier");
-
     /// <summary>The vault summary when it is empty.</summary>
     public static string QuarantineSummaryEmpty => Pick(
         "Nothing is quarantined.",
@@ -1117,13 +963,13 @@ public static class Text
 
     /// <summary>The vault summary when it holds items.</summary>
     public static string QuarantineSummary(int count) => Pick(
-        $"{count} encrypted file(s) isolated in this account's encrypted vault.",
-        $"{count} fichier(s) chiffré(s) isolé(s) dans le coffre chiffré de ce compte.");
+        N(count, "encrypted file isolated in this account's encrypted vault", "encrypted files isolated in this account's encrypted vault"),
+        N(count, "fichier chiffré isolé dans le coffre chiffré de ce compte", "fichiers chiffrés isolés dans le coffre chiffré de ce compte"));
 
     /// <summary>The quarantine count chip.</summary>
     public static string QuarantineCountChip(int count) => Pick(
-        $"{count} encrypted file(s)",
-        $"{count} fichier(s) chiffré(s)");
+        N(count, "encrypted file", "encrypted files"),
+        N(count, "fichier chiffré", "fichiers chiffrés"));
 
     /// <summary>The title of the restore confirmation.</summary>
     public static string RestoreTitle => Pick("Restore this file?", "Restaurer ce fichier ?");
@@ -1314,64 +1160,36 @@ public static class Text
     // ----------------------------------------------------------------------
 
     /// <summary>The history page title.</summary>
-    public static string HistoryTitle => Pick("History", "Historique");
-
     /// <summary>The button that clears the history.</summary>
-    public static string HistoryClear => Pick("Clear history", "Effacer l'historique");
-
     /// <summary>The tooltip of the refresh button.</summary>
-    public static string HistoryRefresh => Pick("Refresh scan history", "Actualiser l'historique des analyses");
-
     /// <summary>The title of the "history data could not be read" banner.</summary>
-    public static string HistoryReadWarningTitle => Pick(
-        "Some history data could not be read",
-        "Certaines données d'historique n'ont pas pu être lues");
-
     /// <summary>The title of the empty history card.</summary>
-    public static string HistoryEmptyTitle => Pick("No scan history yet", "Aucun historique d'analyse");
-
     /// <summary>The body of the empty history card.</summary>
-    public static string HistoryEmptyBody => Pick(
-        "Completed scans are recorded locally with their scope, counts and skipped items. File contents and paths are never written to the log.",
-        "Les analyses terminées sont enregistrées localement avec leur portée, leurs compteurs et les éléments ignorés. Le contenu des fichiers et les chemins ne sont jamais écrits dans le journal.");
-
     /// <summary>The button that starts a quick scan from the empty history card.</summary>
-    public static string HistoryRunQuickScan => Pick("Run a quick scan", "Lancer une analyse rapide");
-
     /// <summary>The title of the history list.</summary>
-    public static string HistoryScans => Pick("Scans", "Analyses");
-
     /// <summary>The count of stored scans.</summary>
     public static string HistoryStored(int count) => Pick(
         $"{count:N0} stored",
-        $"{count:N0} enregistrée(s)");
+        $"{count:N0} enregistrée");
 
     /// <summary>The summary of the history page.</summary>
     public static string HistorySummary(int count) => Pick(
-        $"{count} scan(s) stored locally on this device",
-        $"{count} analyse(s) enregistrée(s) localement sur cet appareil");
+        N(count, "scan stored locally on this device", "scans stored locally on this device"),
+        N(count, "analyse enregistrée localement sur cet appareil", "analyses enregistrées localement sur cet appareil"));
 
     /// <summary>The summary of the history page when it is empty.</summary>
     public static string HistorySummaryEmpty => Pick("No scan history yet.", "Aucun historique d'analyse.");
 
     /// <summary>The label of the duration field.</summary>
-    public static string HistoryDuration => Pick("Duration", "Durée");
-
     /// <summary>The label of the locations block.</summary>
-    public static string HistoryLocations => Pick("Locations", "Emplacements");
-
     /// <summary>The placeholder when no location was recorded.</summary>
     public static string HistoryNoLocations => Pick("No locations recorded.", "Aucun emplacement enregistré.");
 
     /// <summary>The note when a scan recorded no skipped item.</summary>
-    public static string HistoryNoSkipped => Pick(
-        "No skipped items were recorded for this scan.",
-        "Aucun élément ignoré n'a été enregistré pour cette analyse.");
-
     /// <summary>The caption of the skipped-item block when there are some.</summary>
     public static string HistorySkippedCount(int count) => Pick(
-        $"{count:N0} skipped or unreadable item(s)",
-        $"{count:N0} élément(s) ignoré(s) ou illisible(s)");
+        N(count, "skipped or unreadable item", "skipped or unreadable items"),
+        N(count, "élément ignoré ou illisible", "éléments ignorés ou illisibles"));
 
     /// <summary>The caption of the skipped-item block when there are none.</summary>
     public static string HistorySkippedNone => Pick(
@@ -1379,14 +1197,11 @@ public static class Text
         "Aucun élément ignoré n'a été enregistré.");
 
     /// <summary>The button that starts another quick scan.</summary>
-    public static string HistoryRunAnother => Pick(
-        "Run another quick scan",
-        "Lancer une autre analyse rapide");
-
     /// <summary>The disclaimer under the history page.</summary>
-    public static string HistoryFooter => Pick(
-        "Scan history is stored in this Windows account's app data. Clearing it does not affect quarantined files.",
-        "L'historique des analyses est enregistré dans les données d'application de ce compte Windows. L'effacer n'affecte pas les fichiers en quarantaine.");
+    /// <summary>The count line of a scan in the history detail pane.</summary>
+    public static string HistoryCounts(long scanned, long detections, long errors) => Pick(
+        $"{scanned:N0} inspected · {detections:N0} findings · {errors:N0} warnings",
+        $"{scanned:N0} inspectés · {detections:N0} détections · {errors:N0} avertissements");
 
     /// <summary>The title of the clear-history confirmation.</summary>
     public static string HistoryClearTitle => Pick("Clear scan history?", "Effacer l'historique des analyses ?");
@@ -1424,115 +1239,37 @@ public static class Text
     // ----------------------------------------------------------------------
 
     /// <summary>The settings page title.</summary>
-    public static string SettingsTitle => Pick("Settings", "Réglages");
-
     /// <summary>The settings page subtitle.</summary>
-    public static string SettingsSubtitle => Pick(
-        "Tune the scanner and decide how Lumen behaves. Everything is stored locally in this Windows account.",
-        "Ajustez l'analyse et le comportement de Lumen. Tout est enregistré localement dans ce compte Windows.");
-
     /// <summary>The badge that says the settings are saved automatically.</summary>
-    public static string SettingsSavedAutomatically => Pick("SAVED AUTOMATICALLY", "ENREGISTREMENT AUTOMATIQUE");
-
     /// <summary>The title of the "a setting could not be saved" banner.</summary>
-    public static string SettingsSaveErrorTitle => Pick(
-        "A setting could not be saved",
-        "Un réglage n'a pas pu être enregistré");
-
     /// <summary>The title of the appearance card.</summary>
     public static string SettingsAppearanceTitle => Pick("Appearance", "Apparence");
 
     /// <summary>The body of the appearance card.</summary>
-    public static string SettingsAppearanceBody => Pick(
-        "Choose a theme. High contrast mode from Windows always takes priority.",
-        "Choisissez un thème. Le mode à contraste élevé de Windows reste prioritaire.");
-
     /// <summary>The system theme label.</summary>
-    public static string SettingsThemeSystem => Pick("System", "Système");
-
     /// <summary>The light theme label.</summary>
-    public static string SettingsThemeLight => Pick("Light", "Clair");
-
     /// <summary>The dark theme label.</summary>
-    public static string SettingsThemeDark => Pick("Dark", "Sombre");
-
     /// <summary>The high-contrast theme label.</summary>
-    public static string SettingsThemeHighContrast => Pick("High contrast", "Contraste élevé");
-
     /// <summary>The title of the scanning card.</summary>
-    public static string SettingsScanningTitle => Pick("Scanning", "Analyse");
-
     /// <summary>The body of the scanning card.</summary>
-    public static string SettingsScanningBody => Pick(
-        "Controls how much of each file Lumen reads for its content rules.",
-        "Contrôle la quantité de chaque fichier que Lumen lit pour ses règles de contenu.");
-
     /// <summary>The label of the content-prefix slider.</summary>
-    public static string SettingsMaxPrefix => Pick(
-        "Maximum content prefix per file",
-        "Préfixe de contenu maximal par fichier");
-
     /// <summary>The tooltip of the content-prefix slider.</summary>
-    public static string SettingsSliderTooltip => Pick("1 to 16 MB", "De 1 à 16 Mo");
-
     /// <summary>The explanation of the content-prefix slider.</summary>
     public static string SettingsInspectLimit(int megabytes) => Pick(
         $"Lumen reads at most {megabytes} MB from the start of each file for content checks. File-name rules still examine the full name. Contents are never uploaded or written to the log.",
         $"Lumen lit au plus {megabytes} Mo au début de chaque fichier pour les vérifications de contenu. Les règles de nom analysent toujours le nom complet. Le contenu n'est jamais envoyé ni écrit dans le journal.");
 
     /// <summary>The label of the logging switch.</summary>
-    public static string SettingsLoggingLabel => Pick(
-        "Write a local diagnostic log",
-        "Écrire un journal de diagnostic local");
-
     /// <summary>The explanation of the logging switch.</summary>
-    public static string SettingsLoggingBody => Pick(
-        "Technical events only. File contents, hashes and user names are never logged.",
-        "Événements techniques uniquement. Le contenu des fichiers, les empreintes et les noms d'utilisateur ne sont jamais journalisés.");
-
     /// <summary>The title of the window and tray card.</summary>
-    public static string SettingsTrayTitle => Pick("Window and tray", "Fenêtre et zone de notification");
-
     /// <summary>The body of the window and tray card.</summary>
-    public static string SettingsTrayBody => Pick(
-        "The tray icon is optional. Every action remains available in the main window.",
-        "L'icône de notification est facultative. Toutes les actions restent disponibles dans la fenêtre principale.");
-
     /// <summary>The label of the minimize-to-tray switch.</summary>
-    public static string SettingsMinimizeToTrayLabel => Pick(
-        "Keep Lumen in the notification area",
-        "Garder Lumen dans la zone de notification");
-
     /// <summary>The explanation of the minimize-to-tray switch.</summary>
-    public static string SettingsMinimizeToTrayBody => Pick(
-        "Closing or minimizing the window hides it instead of exiting. Use the tray menu to exit.",
-        "Fermer ou réduire la fenêtre la masque au lieu de quitter. Utilisez le menu de notification pour quitter.");
-
     /// <summary>The label of the tray-notification switch.</summary>
-    public static string SettingsTrayNotificationsLabel => Pick(
-        "Show scan notifications",
-        "Afficher les notifications d'analyse");
-
     /// <summary>The explanation of the tray-notification switch.</summary>
-    public static string SettingsTrayNotificationsBody => Pick(
-        "A small notification when a scan finishes while Lumen is hidden.",
-        "Une petite notification lorsqu'une analyse se termine pendant que Lumen est masqué.");
-
     /// <summary>The title of the real-time protection card.</summary>
-    public static string SettingsRealtimeTitle => Pick(
-        "Real-time protection",
-        "Surveillance en temps réel");
-
     /// <summary>The body of the real-time protection card.</summary>
-    public static string SettingsRealtimeBody => Pick(
-        "While Lumen is open it re-checks new, changed and renamed files in your watched folders with the same documented rules used by on-demand scans. Files are only read; nothing is changed unless auto-quarantine is on.",
-        "Tant que Lumen est ouvert, il réanalyse les fichiers nouveaux, modifiés et renommés de vos dossiers surveillés avec les mêmes règles documentées que les analyses à la demande. Les fichiers sont seulement lus ; rien n'est modifié sauf si la quarantaine automatique est activée.");
-
     /// <summary>The label of the real-time switch.</summary>
-    public static string SettingsRealtimeLabel => Pick(
-        "Watch the configured folders",
-        "Surveiller les dossiers configurés");
-
     /// <summary>The explanation of the real-time switch when it is on.</summary>
     public static string SettingsRealtimeOnBody => Pick(
         "Watching the configured folders while Lumen runs.",
@@ -1544,70 +1281,20 @@ public static class Text
         "En pause. Les fichiers nouveaux et modifiés ne sont vérifiés que pendant les analyses.");
 
     /// <summary>The label of the auto-quarantine switch.</summary>
-    public static string SettingsAutoQuarantineLabel => Pick(
-        "Quarantine matches automatically",
-        "Mettre les correspondances en quarantaine automatiquement");
-
     /// <summary>The explanation of the auto-quarantine switch.</summary>
-    public static string SettingsAutoQuarantineBody => Pick(
-        "Matched files are moved into the encrypted vault without an extra prompt. With this off, Lumen only notifies you and never touches the file.",
-        "Les fichiers correspondants sont déplacés dans le coffre chiffré sans question supplémentaire. Si cette option est désactivée, Lumen se contente de vous prévenir et ne touche jamais au fichier.");
-
     /// <summary>The footnote of the real-time protection card.</summary>
-    public static string SettingsRealtimeFootnote => Pick(
-        "This is a user-mode folder watcher, not a driver. It cannot see activity in system folders or outside your user profile, and it only runs while Lumen is open. Keep Microsoft Defender on.",
-        "Il s'agit d'un observateur de dossiers en mode utilisateur, pas un pilote. Il ne voit rien dans les dossiers système ni hors de votre profil, et ne fonctionne que tant que Lumen est ouvert. Gardez Microsoft Defender activé.");
-
     /// <summary>The title of the language card.</summary>
-    public static string SettingsLanguageTitle => Pick("Language", "Langue");
-
     /// <summary>The body of the language card.</summary>
-    public static string SettingsLanguageBody => Pick(
-        "Choose the language of the interface. The change applies immediately, without a restart.",
-        "Choisissez la langue de l'interface. Le changement s'applique immédiatement, sans redémarrage.");
-
     /// <summary>The English language label.</summary>
-    public static string SettingsLanguageEnglish => Pick("English", "English");
-
     /// <summary>The French language label.</summary>
-    public static string SettingsLanguageFrench => Pick("Français", "Français");
-
     /// <summary>The title of the watched-folders card.</summary>
-    public static string SettingsWatchedTitle => Pick(
-        "Watched folders",
-        "Dossiers surveillés");
-
     /// <summary>The body of the watched-folders card.</summary>
-    public static string SettingsWatchedBody => Pick(
-        "Extra folders the real-time monitor watches, in addition to the standard quick-scan folders. Paths that do not exist are ignored.",
-        "Dossiers supplémentaires surveillés par le moniteur en temps réel, en plus des dossiers habituels de l'analyse rapide. Les chemins inexistants sont ignorés.");
-
     /// <summary>The title of the excluded-folders card.</summary>
-    public static string SettingsExcludedTitle => Pick(
-        "Excluded folders",
-        "Dossiers exclus");
-
     /// <summary>The body of the excluded-folders card.</summary>
-    public static string SettingsExcludedBody => Pick(
-        "Folders whose entire subtree the real-time monitor skips. Use this for build caches and tool directories that are noisy but harmless.",
-        "Dossiers dont toute la sous-arborescence est ignorée par le moniteur. Utilisez-les pour les caches de compilation et les répertoires d'outils bruyants mais inoffensifs.");
-
     /// <summary>The button that adds a watched or excluded folder.</summary>
-    public static string SettingsAddFolder => Pick("Add folder…", "Ajouter un dossier…");
-
     /// <summary>The button that removes a watched or excluded folder.</summary>
-    public static string SettingsRemoveFolder => Pick("Remove", "Retirer");
-
     /// <summary>The empty state of the watched-folders list.</summary>
-    public static string SettingsNoWatched => Pick(
-        "Only the standard quick-scan folders are watched.",
-        "Seuls les dossiers habituels de l'analyse rapide sont surveillés.");
-
     /// <summary>The empty state of the excluded-folders list.</summary>
-    public static string SettingsNoExcluded => Pick(
-        "No folder is excluded.",
-        "Aucun dossier n'est exclu.");
-
     /// <summary>The title of the folder picker for a watched folder.</summary>
     public static string SettingsPickWatchedTitle => Pick(
         "Choose a folder to watch",
@@ -1619,166 +1306,48 @@ public static class Text
         "Choisissez un dossier à exclure");
 
     /// <summary>The title of the remediation card.</summary>
-    public static string SettingsRemediationTitle => Pick("Remediation", "Remédiation");
-
     /// <summary>The body of the remediation card.</summary>
-    public static string SettingsRemediationBody => Pick(
-        "Let Lumen clean up a detection: stop the processes that use the file, remove the file permanently, and delete the autostart entries that point at it. Everything is presented as a plan that you confirm before anything happens.",
-        "Autorisez Lumen à nettoyer une détection : arrêter les processus qui utilisent le fichier, supprimer le fichier définitivement et effacer les entrées de démarrage automatique qui pointent vers lui. Tout est présenté sous forme de plan que vous confirmez avant toute action.");
-
     /// <summary>The warning inside the remediation card.</summary>
-    public static string SettingsRemediationWarning => Pick(
-        "Warning: when this is on, Lumen can stop processes and delete files permanently. A file removed this way is not recoverable, except from the encrypted quarantine vault.",
-        "Attention : lorsque cette option est active, Lumen peut arrêter des processus et supprimer des fichiers définitivement. Un fichier supprimé ainsi n'est pas récupérable, sauf depuis le coffre chiffré.");
-
     /// <summary>The label of the remediation switch.</summary>
-    public static string SettingsRemediationLabel => Pick(
-        "Allow remediation actions",
-        "Autoriser les actions de remédiation");
-
     /// <summary>The explanation of the remediation switch.</summary>
-    public static string SettingsRemediationSwitchBody => Pick(
-        "Off by default. With this on, the Clean action appears on the Scan and Quarantine pages.",
-        "Désactivée par défaut. Lorsque cette option est active, l'action Nettoyer apparaît sur les pages Analyse et Quarantaine.");
-
     /// <summary>The title of the detection-alert card.</summary>
-    public static string SettingsAlertTitle => Pick("Detection alert", "Alerte de détection");
-
     /// <summary>The body of the detection-alert card.</summary>
-    public static string SettingsAlertBody => Pick(
-        "Lumen can raise a full-screen alert when something is flagged, so a detection is never missed in a crowded window.",
-        "Lumen peut afficher une alerte plein écran lorsqu'un élément est signalé, afin qu'une détection ne passe jamais inaperçue.");
-
     /// <summary>The label of the "show the alert" switch.</summary>
-    public static string SettingsAlertShowLabel => Pick(
-        "Show the detection alert",
-        "Afficher l'alerte de détection");
-
     /// <summary>The explanation of the "show the alert" switch.</summary>
-    public static string SettingsAlertShowBody => Pick(
-        "A window appears as soon as a file matches a rule.",
-        "Une fenêtre apparaît dès qu'un fichier correspond à une règle.");
-
     /// <summary>The label of the "play the sound" switch.</summary>
-    public static string SettingsAlertSoundLabel => Pick(
-        "Play the alert sound",
-        "Jouer le son d'alerte");
-
     /// <summary>The explanation of the "play the sound" switch.</summary>
-    public static string SettingsAlertSoundBody => Pick(
-        "Off by default: an unexpected noise on someone's machine is rude.",
-        "Désactivé par défaut : un bruit inattendu sur la machine de quelqu'un est déplacé.");
-
     /// <summary>The label of the "show the cat" switch.</summary>
-    public static string SettingsAlertCatLabel => Pick("Show the cat", "Afficher le chat");
-
     /// <summary>The explanation of the "show the cat" switch.</summary>
-    public static string SettingsAlertCatBody => Pick(
-        "It has no effect on any detection. It is there because a security tool that takes itself too seriously is a security tool nobody wants to open.",
-        "Cela n'a aucun effet sur les détections. C'est là parce qu'un logiciel de sécurité qui se prend trop au sérieux est un logiciel que personne n'ouvre.");
-
     /// <summary>The title of the Defender card.</summary>
-    public static string SettingsDefenderTitle => Pick("Microsoft Defender", "Microsoft Defender");
-
     /// <summary>The body of the Defender card.</summary>
-    public static string SettingsDefenderBody => Pick(
-        "Read-only status. Lumen never changes Defender settings.",
-        "État en lecture seule. Lumen ne modifie jamais les réglages de Defender.");
-
     /// <summary>The title of the detection-rules card.</summary>
-    public static string SettingsRulesTitle => Pick("Detection rules", "Règles de détection");
-
     /// <summary>The body of the detection-rules card.</summary>
-    public static string SettingsRulesBody => Pick(
-        "These rules are documented and cover signatures, heuristics, archives, documents and scripts. They are not a malware signature database.",
-        "Ces règles sont documentées et couvrent les signatures, les heuristiques, les archives, les documents et les scripts. Ce n'est pas une base de signatures de logiciels malveillants.");
-
     /// <summary>The chip that marks the test-signature rules.</summary>
-    public static string SettingsTestSignature => Pick("Test signature", "Signature de test");
-
     /// <summary>The count of documented rules.</summary>
     public static string SettingsRulesCount(int count) => Pick(
         $"{count:N0} documented rules",
         $"{count:N0} règles documentées");
 
     /// <summary>The title of the data and privacy card.</summary>
-    public static string SettingsDataTitle => Pick("Data and privacy", "Données et confidentialité");
-
     /// <summary>The body of the data and privacy card.</summary>
-    public static string SettingsDataBody => Pick(
-        "Lumen keeps its state under this account's local app data. It does not write to its install folder.",
-        "Lumen conserve ses données dans les données d'application locales de ce compte. Il n'écrit jamais dans son dossier d'installation.");
-
     /// <summary>The label of the settings, history and logs row.</summary>
-    public static string SettingsDataRow => Pick(
-        "Settings, history and logs",
-        "Réglages, historique et journaux");
-
     /// <summary>The label of the encrypted quarantine row.</summary>
-    public static string SettingsQuarantineRow => Pick(
-        "Encrypted quarantine",
-        "Quarantaine chiffrée");
-
     /// <summary>The label of the diagnostic log row.</summary>
-    public static string SettingsLogRow => Pick("Diagnostic log", "Journal de diagnostic");
-
     /// <summary>The button that opens a folder.</summary>
-    public static string SettingsOpen => Pick("Open", "Ouvrir");
-
     /// <summary>The title of the test-tools card.</summary>
-    public static string SettingsTestToolsTitle => Pick("Test tools", "Outils de test");
-
     /// <summary>The body of the test-tools card.</summary>
-    public static string SettingsTestToolsBody => Pick(
-        "Create harmless files to verify that scanning, findings and quarantine work end to end.",
-        "Créez des fichiers sans danger pour vérifier que l'analyse, les détections et la quarantaine fonctionnent de bout en bout.");
-
     /// <summary>The title of the harmless-files banner.</summary>
-    public static string SettingsHarmlessTitle => Pick("These files are harmless", "Ces fichiers sont sans danger");
-
     /// <summary>The body of the harmless-files banner.</summary>
-    public static string SettingsHarmlessBody => Pick(
-        "EICAR is a standard antivirus test string, not malware, but Microsoft Defender may quarantine it immediately. Use only a folder you control, preferably inside a test VM.",
-        "EICAR est une chaîne de test standard pour les antivirus, pas un logiciel malveillant, mais Microsoft Defender peut le mettre en quarantaine immédiatement. Utilisez uniquement un dossier que vous contrôlez, de préférence dans une machine virtuelle de test.");
-
     /// <summary>The label of the benign-samples row.</summary>
-    public static string SettingsSamplesLabel => Pick("Benign test files", "Fichiers de test inoffensifs");
-
     /// <summary>The explanation of the benign-samples row.</summary>
-    public static string SettingsSamplesBody => Pick(
-        "Plain text plus a deceptive double-extension name. None are executable.",
-        "Du texte simple ainsi qu'un nom à double extension trompeuse. Aucun n'est exécutable.");
-
     /// <summary>The button that creates the benign samples.</summary>
-    public static string SettingsCreateSamples => Pick("Create samples…", "Créer des exemples…");
-
     /// <summary>The label of the EICAR row.</summary>
-    public static string SettingsEicarLabel => Pick("EICAR test file", "Fichier de test EICAR");
-
     /// <summary>The explanation of the EICAR row.</summary>
-    public static string SettingsEicarBody => Pick(
-        "The industry-standard scanner plumbing test. Defender may remove it at once.",
-        "Le test standard de la mécanique de l'analyse. Defender peut le supprimer aussitôt.");
-
     /// <summary>The button that creates the EICAR file.</summary>
-    public static string SettingsCreateEicar => Pick("Create EICAR…", "Créer EICAR…");
-
     /// <summary>The title of the about card.</summary>
-    public static string SettingsAboutTitle => Pick("About Lumen", "À propos de Lumen");
-
     /// <summary>The disclaimer under the about text.</summary>
-    public static string SettingsAboutFooter => Pick(
-        "Keep Microsoft Defender enabled. Lumen's real-time protection is a user-mode folder watcher that runs only while the app is open; it is not a driver, cloud analysis or a full malware signature database.",
-        "Laissez Microsoft Defender activé. La surveillance en temps réel de Lumen est un observateur de dossiers en mode utilisateur, actif uniquement tant que l'application est ouverte ; ce n'est ni un pilote, ni une analyse dans le cloud, ni une base complète de signatures.");
-
     /// <summary>The button that restores the default settings.</summary>
-    public static string SettingsRestoreDefaults => Pick("Restore defaults", "Rétablir les valeurs par défaut");
-
     /// <summary>The footer of the settings page.</summary>
-    public static string SettingsFooter => Pick(
-        "Settings are saved to this Windows account only. No account, cloud sync or telemetry is used.",
-        "Les réglages sont enregistrés uniquement dans ce compte Windows. Aucun compte, aucune synchronisation cloud, aucune télémétrie.");
-
     /// <summary>The version label.</summary>
     public static string SettingsVersion(string version) => Pick($"Version {version}", $"Version {version}");
 
@@ -1930,29 +1499,15 @@ public static class Text
     // ----------------------------------------------------------------------
 
     /// <summary>The title of the remediation plan window.</summary>
-    public static string RemediationPlanTitle => Pick(
-        "Remediation plan",
-        "Plan de remédiation");
-
     /// <summary>The intro of the remediation plan window.</summary>
-    public static string RemediationPlanIntro => Pick(
-        "Nothing has happened yet. This is what Lumen would do. Tick the steps you want and confirm.",
-        "Rien ne s'est encore produit. Voici ce que Lumen ferait. Cochez les étapes souhaitées puis confirmez.");
-
     /// <summary>The title of the remediation plan window for one file.</summary>
     public static string RemediationPlanTitleFor(string fileName) => Pick(
         $"Remediation plan — {fileName}",
         $"Plan de remédiation — {fileName}");
 
     /// <summary>The label of the finding the plan is about.</summary>
-    public static string RemediationFinding => Pick("Finding", "Détection");
-
     /// <summary>The label of the file the plan is about.</summary>
-    public static string RemediationFile => Pick("File", "Fichier");
-
     /// <summary>The label of the steps list.</summary>
-    public static string RemediationSteps => Pick("Steps", "Étapes");
-
     /// <summary>The label of a step that stops a process.</summary>
     public static string RemediationKindTerminate => Pick(
         "Stop a running process",
@@ -1969,17 +1524,9 @@ public static class Text
         "Supprimer une entrée de démarrage automatique");
 
     /// <summary>The confirmation button of the remediation plan window.</summary>
-    public static string RemediationExecute => Pick("Execute the selected steps", "Exécuter les étapes sélectionnées");
-
     /// <summary>The cancel button of the remediation plan window.</summary>
-    public static string RemediationCancel => Pick("Cancel", "Annuler");
-
     /// <summary>The label of the process id in a step.</summary>
-    public static string RemediationProcess => Pick("Process", "Processus");
-
     /// <summary>The label of the autostart location in a step.</summary>
-    public static string RemediationLocation => Pick("Location", "Emplacement");
-
     /// <summary>The label of a signed process in a step.</summary>
     public static string RemediationSigned => Pick("Signed executable", "Exécutable signé");
 
@@ -1987,18 +1534,12 @@ public static class Text
     public static string RemediationUnsigned => Pick("No valid digital signature", "Aucune signature numérique valide");
 
     /// <summary>The empty state of the plan window.</summary>
-    public static string RemediationNoSteps => Pick(
-        "There is nothing to clean up for this file.",
-        "Il n'y a rien à nettoyer pour ce fichier.");
-
     /// <summary>The short reminder shown next to the buttons of the plan window.</summary>
     public static string RemediationNothingChangedYet => Pick(
         "Nothing has been changed yet.",
         "Rien n'a encore été modifié.");
 
     /// <summary>The title of the remediation outcome window.</summary>
-    public static string RemediationResultTitle => Pick("Remediation result", "Résultat de la remédiation");
-
     /// <summary>The outcome label of a step that succeeded.</summary>
     public static string RemediationSucceeded => Pick("Done", "Terminé");
 
@@ -2065,26 +1606,24 @@ public static class Text
         "Remédiation terminée");
 
     /// <summary>The banner body when the remediation finished.</summary>
-    public static string RemediationDoneBody => Pick(
-        "Every selected step completed. The encrypted vault copy was kept.",
-        "Toutes les étapes sélectionnées ont abouti. La copie chiffrée a été conservée.");
-
     /// <summary>The banner title when the remediation finished with problems.</summary>
     public static string RemediationWarnTitle => Pick(
         "Remediation finished with problems",
         "Remédiation terminée avec des problèmes");
 
     /// <summary>The banner body when the remediation finished with problems.</summary>
-    public static string RemediationWarnBody => Pick(
-        "Some steps failed and the rest were skipped. The encrypted vault copy was kept.",
-        "Certaines étapes ont échoué et les autres ont été ignorées. La copie chiffrée a été conservée.");
-
     // ----------------------------------------------------------------------
     // Shared helpers
     // ----------------------------------------------------------------------
 
+    /// <summary>The title of the last-scan card when no scan was ever run.</summary>
+    public static string ScanNoneYet => Pick("No scans yet", "Aucune analyse");
+
+    /// <summary>The fallback title of a detection that carries no finding.</summary>
+    public static string PotentialIssueTitle => Pick("Potential issue", "Problème potentiel");
+
     /// <summary>The singular or plural form of "finding".</summary>
-    public static string FindingCaption(int count) => IsFrench
+    public static string FindingCaption(long count) => IsFrench
         ? (count == 1 ? "détection" : "détections")
         : (count == 1 ? "finding" : "findings");
 
@@ -2100,7 +1639,6 @@ public static class Text
     public static string AdditionalFindings(int count) => Pick(
         $"+{count} more finding(s)",
         $"+{count} autre(s) détection(s)");
-
     /// <summary>The title used for a file quarantined from the detection alert.</summary>
     public static string QuarantineAlertTitle => Pick(
         "Quarantined from the detection alert",
@@ -2110,6 +1648,26 @@ public static class Text
     public static string QuarantineAlertDetail => Pick(
         "The user asked for this file to be quarantined from the detection alert.",
         "L'utilisateur a demandé la mise en quarantaine de ce fichier depuis l'alerte de détection.");
+
+    /// <summary>The title shown when the alert quarantine worked.</summary>
+    public static string QuarantineAlertDoneTitle => Pick(
+        "File quarantined",
+        "Fichier en quarantaine");
+
+    /// <summary>The body shown when the alert quarantine worked.</summary>
+    public static string QuarantineAlertDoneBody => Pick(
+        "The encrypted copy is in the vault and the original was removed. You can restore it from the Quarantine page.",
+        "La copie chiffrée est dans le coffre et l'original a été supprimé. Vous pouvez le restaurer depuis la page Quarantaine.");
+
+    /// <summary>The title shown when the alert quarantine failed.</summary>
+    public static string QuarantineAlertFailedTitle => Pick(
+        "The file could not be quarantined",
+        "Le fichier n'a pas pu être mis en quarantaine");
+
+    /// <summary>The body shown when the alert quarantine failed.</summary>
+    public static string QuarantineAlertFailedBody => Pick(
+        "Nothing was changed. The file is still where it was.",
+        "Rien n'a été modifié. Le fichier est toujours à son emplacement.");
 
     /// <summary>The history status of a cancelled scan.</summary>
     public static string HistoryStatusCancelled => Pick("Cancelled", "Annulée");

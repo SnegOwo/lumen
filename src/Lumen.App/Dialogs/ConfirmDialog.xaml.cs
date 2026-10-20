@@ -52,15 +52,15 @@ public partial class ConfirmDialog : Window
 
     private void ApplySeverity(MessageSeverity severity)
     {
-        var (glyph, softKey, textKey) = severity switch
+        var (iconKey, softKey, textKey) = severity switch
         {
-            MessageSeverity.Success => ("\uE73E", "Success.Soft", "Success.Text"),
-            MessageSeverity.Warning => ("\uE7BA", "Warning.Soft", "Warning.Text"),
-            MessageSeverity.Danger => ("\uEA39", "Danger.Soft", "Danger.Text"),
-            _ => ("\uE946", "Info.Soft", "Info.Text")
+            MessageSeverity.Success => ("Icon.Check", "Success.Soft", "Success.Text"),
+            MessageSeverity.Warning => ("Icon.Warning", "Warning.Soft", "Warning.Text"),
+            MessageSeverity.Danger => ("Icon.Error", "Danger.Soft", "Danger.Text"),
+            _ => ("Icon.Info", "Info.Soft", "Info.Text")
         };
 
-        IconGlyph.Text = glyph;
+        if (TryFindResource(iconKey) is string glyph) IconGlyph.Text = glyph;
         if (TryFindResource(softKey) is Brush background) IconTile.Background = background;
         if (TryFindResource(textKey) is Brush foreground) IconGlyph.Foreground = foreground;
     }

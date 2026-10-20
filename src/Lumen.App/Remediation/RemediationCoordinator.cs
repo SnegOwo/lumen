@@ -1,4 +1,5 @@
 using System.Windows;
+using Lumen.App.Dialogs;
 using Lumen.App.Localization;
 using Lumen.Core.Models;
 

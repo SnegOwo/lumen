@@ -89,11 +89,11 @@ public sealed class XamlWellFormednessTests
         var failures = new List<string>();
         var loaded = 0;
 
-        foreach (var (file, type) in UserControlViews())
+        foreach (var (file, _) in UserControlViews())
         {
             try
             {
-                WpfHost.Shared.Invoke(() => Activator.CreateInstance(type));
+                LumenApplication.CreateView(file);
                 loaded++;
             }
             catch (Exception exception)

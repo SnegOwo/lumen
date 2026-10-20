@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:infra="clr-namespace:Lumen.App.Infrastructure">
 
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="../Tokens.xaml" />
@@ -37,13 +38,35 @@
                                             <Border x:Name="Bar"
                                                     Background="{DynamicResource App.BorderStrong}"
                                                     CornerRadius="{StaticResource Radius.Xs}"
-                                                    Margin="3" />
+                                                    Margin="3"
+                                                    Opacity="0.7" />
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter TargetName="Bar" Property="Background" Value="{DynamicResource Accent.Text}" />
+                                                    <Trigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetName="Bar"
+                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                 To="1"
+                                                                                 Duration="{infra:Motion Motion.Fast}" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.EnterActions>
+                                                    <Trigger.ExitActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetName="Bar"
+                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                 To="0.7"
+                                                                                 Duration="{infra:Motion Motion.Fast}" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.ExitActions>
                                                 </Trigger>
                                                 <Trigger Property="IsDragging" Value="True">
                                                     <Setter TargetName="Bar" Property="Background" Value="{DynamicResource Accent.Primary}" />
+                                                    <Setter TargetName="Bar" Property="Opacity" Value="1" />
                                                 </Trigger>
                                                 <Trigger Property="IsEnabled" Value="False">
                                                     <Setter TargetName="Bar" Property="Opacity" Value="0.4" />

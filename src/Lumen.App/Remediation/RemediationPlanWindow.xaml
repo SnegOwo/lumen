@@ -64,7 +64,7 @@
                         Padding="12,10"
                         Margin="0,12,0,0">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE946;"
+                        <TextBlock Text="{StaticResource Icon.Info}"
                                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                    FontSize="13"
                                    Foreground="{DynamicResource Info.Text}"
@@ -128,24 +128,36 @@
                                                    Style="{StaticResource BodySecondary}"
                                                    Margin="0,3,0,0" />
 
-                                        <TextBlock Text="{Binding ProcessText}"
-                                                   Style="{StaticResource Mono}"
-                                                   FontSize="11.5"
-                                                   Margin="0,6,0,0"
-                                                   Visibility="{Binding ProcessText, Converter={StaticResource EmptyStringToVisibility}}" />
+                                        <StackPanel Margin="0,6,0,0"
+                                                    Visibility="{Binding ProcessText, Converter={StaticResource EmptyStringToVisibility}}">
+                                            <TextBlock Text="{DynamicResource Strings.Remediation.Process}"
+                                                       Style="{StaticResource Caption}" />
+                                            <TextBlock Text="{Binding ProcessText}"
+                                                       Style="{StaticResource Mono}"
+                                                       FontSize="11.5"
+                                                       Margin="0,2,0,0" />
+                                        </StackPanel>
 
-                                        <TextBlock Text="{Binding PathText}"
-                                                   Style="{StaticResource Mono}"
-                                                   FontSize="11.5"
-                                                   Margin="0,6,0,0"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   ToolTip="{Binding PathText}"
-                                                   Visibility="{Binding PathText, Converter={StaticResource EmptyStringToVisibility}}" />
+                                        <StackPanel Margin="0,6,0,0"
+                                                    Visibility="{Binding PathText, Converter={StaticResource EmptyStringToVisibility}}">
+                                            <TextBlock Text="{DynamicResource Strings.Remediation.File}"
+                                                       Style="{StaticResource Caption}" />
+                                            <TextBlock Text="{Binding PathText}"
+                                                       Style="{StaticResource Mono}"
+                                                       FontSize="11.5"
+                                                       Margin="0,2,0,0"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding PathText}" />
+                                        </StackPanel>
 
                                         <StackPanel Margin="0,6,0,0"
                                                     Visibility="{Binding LocationText, Converter={StaticResource EmptyStringToVisibility}}">
+                                            <TextBlock Text="{DynamicResource Strings.Remediation.Location}"
+                                                       Style="{StaticResource Caption}" />
                                             <TextBlock Text="{Binding LocationText}"
-                                                       Style="{StaticResource Caption}"
+                                                       Style="{StaticResource Mono}"
+                                                       FontSize="11.5"
+                                                       Margin="0,2,0,0"
                                                        TextTrimming="CharacterEllipsis"
                                                        ToolTip="{Binding LocationText}" />
                                             <TextBlock Text="{Binding EntryTargetText}"
@@ -206,7 +218,9 @@
                         Padding="16,14"
                         Visibility="{Binding HasResult, Converter={StaticResource BooleanToVisibility}}">
                     <StackPanel>
-                        <TextBlock Text="{Binding ResultTitle}" Style="{StaticResource CardTitle}" />
+                        <TextBlock Text="{DynamicResource Strings.Remediation.ResultTitle}"
+                                   Style="{StaticResource Caption}" />
+                        <TextBlock Text="{Binding ResultTitle}" Style="{StaticResource CardTitle}" Margin="0,3,0,0" />
                         <TextBlock Text="{Binding ResultMessage}"
                                    Style="{StaticResource BodySecondary}"
                                    Margin="0,5,0,0" />
@@ -219,10 +233,19 @@
                         Padding="12,10"
                         Margin="0,14,0,0"
                         Visibility="{Binding HasError, Converter={StaticResource BooleanToVisibility}}">
-                    <TextBlock Text="{Binding ErrorText}"
-                               FontSize="12.5"
-                               Foreground="{DynamicResource App.TextPrimary}"
-                               TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{StaticResource Icon.Error}"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource Danger.Text}"
+                                   Margin="0,1,8,0"
+                                   VerticalAlignment="Top"
+                                   AutomationProperties.Name="" />
+                        <TextBlock Text="{Binding ErrorText}"
+                                   FontSize="12.5"
+                                   Foreground="{DynamicResource App.TextPrimary}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
                 </Border>
             </StackPanel>
         </ScrollViewer>
@@ -245,11 +268,23 @@
                            TextWrapping="Wrap" />
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <Button Content="{DynamicResource Strings.Remediation.Cancel}"
-                            Style="{StaticResource SecondaryButton}"
+                    <Button Style="{StaticResource SecondaryButton}"
                             Click="OnCancelClicked"
                             MinWidth="104"
-                            AutomationProperties.Name="{DynamicResource Strings.Remediation.Cancel}" />
+                            AutomationProperties.Name="{DynamicResource Strings.Remediation.Cancel}">
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{DynamicResource Strings.Remediation.Cancel}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasResult}" Value="True">
+                                            <Setter Property="Text" Value="{DynamicResource Strings.Remediation.Close}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Button>
                     <Button x:Name="ExecuteButton"
                             Content="{DynamicResource Strings.Remediation.Confirm}"
                             Style="{StaticResource DangerButton}"

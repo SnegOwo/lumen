@@ -134,7 +134,25 @@ Settings → Language → Français. Everything switches immediately.
 
 > "It speaks French. Because of course it does."
 
-### Shot 9 — the code (3:40)
+### Shot 9 — the easter eggs (3:40)
+
+These are the ones that make the video. All of them are real, all of them are harmless,
+and none of them change how a file is inspected.
+
+| Trigger | What happens |
+|---|---|
+| **F9** | Raises the detection alert on a harmless sample. The cat, the red border, the whole thing. This is the money shot — press it live rather than setting up a file first. |
+| **↑ ↑ ↓ ↓ ← → ← → B A** (the Konami code) | **CAT MODE.** The accent turns orange and a very smug cat appears with the message *"Lumen is now 100% more accurate. This claim is decorative."* Press **Esc** to go back. |
+| **Click the cat in CAT MODE** | A completely fictional bug report: `CatException: the scan was interrupted by a cat`, error code **0xC0FFEE**, with a stack trace naming `CatDetector.Inspect` and `CatArt.OnRender`. |
+| **Ctrl + Alt + C** | A cat walks across the bottom of the window. It has never been near a file. |
+
+The cat is drawn entirely with WPF vector geometry — no image files, no fonts, no
+downloads. It blinks and sways its tail. That is worth mentioning, because it is the
+part an AI cannot fake convincingly and a human could not draw in an afternoon.
+
+Do the Konami code **on camera**. The pause before the cat appears is the joke.
+
+### Shot 10 — the code (3:55)
 
 The interesting engineering, if the audience is technical:
 

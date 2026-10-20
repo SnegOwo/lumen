@@ -5,6 +5,8 @@ using Lumen.App.Infrastructure;
 using Lumen.App.Localization;
 using Lumen.App.Services;
 using Lumen.Core.Models;
+using Lumen.Core.Protection;
+using Lumen.Core.Quarantine;
 
 namespace Lumen.App.ViewModels;
 
@@ -18,7 +20,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string _headerStatusText = "Ready";
     private string _headerStatusDetail = "Real-time protection active";
     private bool _isBusy;
-    private string _themeGlyph = "\uE770";
     private string _themeTooltip = "Switch theme";
     private bool _canToggleTheme = true;
     private bool _disposed;
@@ -35,11 +36,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         NavigationItems =
         [
-            new NavigationItemViewModel("dashboard", Text.NavDashboard, "\uE80F", Dashboard, Navigate),
-            new NavigationItemViewModel("scan", Text.NavScan, "\uE721", Scan, Navigate),
-            new NavigationItemViewModel("quarantine", Text.NavQuarantine, "\uE72E", Quarantine, Navigate),
-            new NavigationItemViewModel("history", Text.NavHistory, "\uE81C", History, Navigate),
-            new NavigationItemViewModel("settings", Text.NavSettings, "\uE713", Settings, Navigate)
+            new NavigationItemViewModel("dashboard", Text.NavDashboard, Dashboard, Navigate),
+            new NavigationItemViewModel("scan", Text.NavScan, Scan, Navigate),
+            new NavigationItemViewModel("quarantine", Text.NavQuarantine, Quarantine, Navigate),
+            new NavigationItemViewModel("history", Text.NavHistory, History, Navigate),
+            new NavigationItemViewModel("settings", Text.NavSettings, Settings, Navigate)
         ];
 
         NavigateCommand = new RelayCommand<string>(key => Navigate(key ?? string.Empty));
@@ -53,6 +54,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Scan.PropertyChanged += OnScanPropertyChanged;
         _services.DataChanged += OnDataChanged;
         _services.SettingsChanged += OnSettingsChanged;
+        _services.RealtimeDetected += OnRealtimeDetected;
+        _services.Alerts.QuarantineRequested += OnQuarantineRequested;
         Text.LanguageChanged += OnLanguageChanged;
 
         UpdateHeader();
@@ -72,6 +75,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public RelayCommand QuickScanCommand { get; }
     public RelayCommand ToggleThemeCommand { get; }
     public RelayCommand OpenSettingsCommand { get; }
+
+    /// <summary>The title of the window, in the interface language.</summary>
+    public string WindowTitle => Text.WindowTitle;
 
     /// <summary>The page that is currently shown. It is one of the five page view models.</summary>
     public object CurrentPage
@@ -122,17 +128,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         private set => SetProperty(ref _isBusy, value);
     }
 
-    public string ThemeGlyph
-    {
-        get => _themeGlyph;
-        private set => SetProperty(ref _themeGlyph, value);
-    }
-
     public string ThemeTooltip
     {
         get => _themeTooltip;
         private set => SetProperty(ref _themeTooltip, value);
     }
+
+    /// <summary>True when the dark palette is in effect. The toggle shows the moon.</summary>
+    public bool IsDarkTheme => _services.Settings.Theme == AppTheme.Dark;
+
+    /// <summary>True when the palette follows Windows. The toggle shows the system glyph.</summary>
+    public bool UsesSystemTheme => _services.Settings.Theme == AppTheme.System;
 
     /// <summary>
     /// False when Windows itself asks for a high-contrast theme. The palette is then
@@ -249,6 +255,78 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         UpdateHeader();
         UpdateThemeState();
+        OnPropertyChanged(nameof(WindowTitle));
+    }
+
+    /// <summary>
+    /// Raises the loud detection alert for a real-time match. A clean scan never
+    /// raises it: only a real detection does.
+    /// </summary>
+    private void OnRealtimeDetected(object? sender, RealtimeDetectionEvent detection)
+    {
+        var primary = detection.PrimaryFinding;
+
+        var report = new ScanDetection
+        {
+            FilePath = detection.FilePath,
+            SizeBytes = detection.SizeBytes,
+            Sha256 = detection.Sha256,
+            Findings = detection.Findings,
+            DetectedUtc = detection.DetectedUtc
+        };
+
+        _services.Alerts.Show(
+            report,
+            detection.FileName,
+            primary?.Title ?? Text.PotentialIssueTitle,
+            Presentation.ConfidenceText(primary?.Confidence ?? Confidence.Low));
+    }
+
+    /// <summary>
+    /// The user asked for the alerted file to be quarantined. It goes through the
+    /// same confirmed vault service as a manual quarantine; the alert window was
+    /// the confirmation.
+    /// </summary>
+    private async void OnQuarantineRequested(object? sender, string path)
+    {
+        try
+        {
+            var result = await _services.Quarantine.QuarantineAsync(
+                new QuarantineRequest
+                {
+                    FilePath = path,
+                    FindingTitle = Text.QuarantineAlertTitle,
+                    Category = FindingCategory.Heuristic,
+                    FindingDetail = Text.QuarantineAlertDetail,
+                    SourceScanId = "alert",
+                    DetectedUtc = _services.Clock.UtcNow
+                },
+                progress: null,
+                CancellationToken.None);
+
+            if (result.Status is QuarantineStatus.Quarantined or QuarantineStatus.QuarantinedOriginalRetained)
+            {
+                _services.Dialogs.ShowMessage(
+                    Text.QuarantineAlertDoneTitle,
+                    Text.QuarantineAlertDoneBody,
+                    MessageSeverity.Success);
+                _services.NotifyDataChanged();
+                return;
+            }
+
+            _services.Dialogs.ShowMessage(
+                Text.QuarantineAlertFailedTitle,
+                result.Message ?? Text.QuarantineAlertFailedBody,
+                MessageSeverity.Warning);
+        }
+        catch (Exception ex)
+        {
+            _services.Log.Error("Alert", "The alerted file could not be quarantined.", ex);
+            _services.Dialogs.ShowMessage(
+                Text.QuarantineAlertFailedTitle,
+                Text.QuarantineAlertFailedBody,
+                MessageSeverity.Warning);
+        }
     }
 
     private void UpdateBadges()
@@ -287,12 +365,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         var preference = _services.Settings.Theme;
 
-        ThemeGlyph = preference switch
-        {
-            AppTheme.Dark => "\uE706",
-            AppTheme.Light => "\uE708",
-            _ => "\uE770"
-        };
+        OnPropertyChanged(nameof(IsDarkTheme), nameof(UsesSystemTheme));
 
         CanToggleTheme = !_services.Theme.IsSystemHighContrast;
 
@@ -327,7 +400,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (!result.Ok)
         {
             _services.Dialogs.ShowMessage(
-                Text.ThemeTooltip,
+                Text.SettingsAppearanceTitle,
                 result.Message ?? Text.SettingsSaveFailed,
                 MessageSeverity.Warning);
         }
@@ -342,6 +415,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Scan.PropertyChanged -= OnScanPropertyChanged;
         _services.DataChanged -= OnDataChanged;
         _services.SettingsChanged -= OnSettingsChanged;
+        _services.RealtimeDetected -= OnRealtimeDetected;
+        _services.Alerts.QuarantineRequested -= OnQuarantineRequested;
         Text.LanguageChanged -= OnLanguageChanged;
 
         Dashboard.Dispose();
@@ -362,19 +437,16 @@ public sealed class NavigationItemViewModel : ObservableObject
     public NavigationItemViewModel(
         string key,
         string title,
-        string glyph,
         object page,
         Action<string> navigate)
     {
         Key = key;
         _title = title;
-        Glyph = glyph;
         Page = page;
         SelectCommand = new RelayCommand(() => navigate(key));
     }
 
     public string Key { get; }
-    public string Glyph { get; }
     public object Page { get; }
     public RelayCommand SelectCommand { get; }
 

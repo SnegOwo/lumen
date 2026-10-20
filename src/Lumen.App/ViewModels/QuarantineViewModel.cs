@@ -156,6 +156,14 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel, IDis
     }
 
     /// <summary>
+    /// The banner, in one line. It is announced by the live region of the page, so
+    /// a screen reader reports what the banner says.
+    /// </summary>
+    public string BannerAnnouncement => _hasBanner
+        ? BannerTitle + ". " + BannerMessage
+        : string.Empty;
+
+    /// <summary>
     /// True when the user allowed remediation actions. The Clean action stays disabled
     /// while it is off.
     /// </summary>
@@ -513,6 +521,7 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel, IDis
         BannerMessage = message;
         BannerSeverity = severity;
         HasBanner = true;
+        OnPropertyChanged(nameof(BannerAnnouncement));
     }
 
     private void OnServicesSettingsChanged(object? sender, EventArgs e)
@@ -527,6 +536,8 @@ public sealed class QuarantineViewModel : ObservableObject, IPageViewModel, IDis
             nameof(VaultSummary),
             nameof(EmptyDetail),
             nameof(WorkingLabel));
+
+        foreach (var item in Items) item.Refresh();
     }
 
     private void RaiseCommandStates()

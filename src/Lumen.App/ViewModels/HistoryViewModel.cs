@@ -71,6 +71,9 @@ public sealed class HistoryViewModel : ObservableObject, IPageViewModel, IDispos
         ? Text.HistorySummary(Rows.Count)
         : Text.HistorySummaryEmpty;
 
+    /// <summary>How many scans are stored on this device.</summary>
+    public string StoredCountText => Text.HistoryStored(Rows.Count);
+
     public HistoryRowViewModel? SelectedRow
     {
         get => _selectedRow;
@@ -106,6 +109,14 @@ public sealed class HistoryViewModel : ObservableObject, IPageViewModel, IDispos
         get => _bannerSeverity;
         private set => SetProperty(ref _bannerSeverity, value);
     }
+
+    /// <summary>
+    /// The banner, in one line. It is announced by the live region of the page, so
+    /// a screen reader reports what the banner says.
+    /// </summary>
+    public string BannerAnnouncement => _hasBanner
+        ? BannerTitle + ". " + BannerMessage
+        : string.Empty;
 
     public string DetailTitle
     {
@@ -194,10 +205,10 @@ public sealed class HistoryViewModel : ObservableObject, IPageViewModel, IDispos
         DetailWhen = TimeFormatter.DateTime(source.StartedUtc);
         DetailStatus = SelectedRow.StatusText;
         DetailScope = Presentation.Scope(source.Scope);
-        DetailCounts =
-            $"{Text.Count(source.FilesScanned, Text.File)} inspected · " +
-            $"{Text.Count(source.DetectionCount, Text.Finding)} · " +
-            $"{Text.Count(source.ErrorCount, Text.Warning)}";
+        DetailCounts = Text.HistoryCounts(
+            source.FilesScanned,
+            source.DetectionCount,
+            source.ErrorCount);
         DetailDuration = TimeFormatter.Duration(source.Duration);
         DetailRoots = source.Roots.Count == 0
             ? Text.HistoryNoLocations
@@ -225,6 +236,7 @@ public sealed class HistoryViewModel : ObservableObject, IPageViewModel, IDispos
             BannerMessage = result.Message ?? Text.HistoryClearFailedBody;
             BannerSeverity = MessageSeverity.Warning;
             HasBanner = true;
+            OnPropertyChanged(nameof(BannerAnnouncement));
             return;
         }
 
@@ -233,6 +245,7 @@ public sealed class HistoryViewModel : ObservableObject, IPageViewModel, IDispos
         BannerMessage = Text.HistoryClearedBody;
         BannerSeverity = MessageSeverity.Success;
         HasBanner = true;
+        OnPropertyChanged(nameof(BannerAnnouncement));
         _services.NotifyDataChanged();
     }
 
@@ -240,6 +253,7 @@ public sealed class HistoryViewModel : ObservableObject, IPageViewModel, IDispos
     {
         OnPropertyChanged(
             nameof(SummaryText),
+            nameof(StoredCountText),
             nameof(DetailErrorsCaption),
             nameof(DetailCounts),
             nameof(DetailScope),

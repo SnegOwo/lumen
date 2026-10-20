@@ -3,12 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:Lumen.App.Controls"
+        xmlns:views="clr-namespace:Lumen.App.Views"
         xmlns:vm="clr-namespace:Lumen.App.ViewModels"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
-        Title="Lumen &#x2014; Local file inspection"
+        Title="{Binding WindowTitle}"
         Width="1320" Height="840"
-        MinWidth="1080" MinHeight="640"
+        MinWidth="900" MinHeight="640"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/Assets/lumen.ico"
         Background="{DynamicResource App.Background}"
@@ -57,7 +59,7 @@
                                Width="34"
                                Height="34"
                                RenderOptions.BitmapScalingMode="HighQuality"
-                               AutomationProperties.Name="Lumen shield logo" />
+                               AutomationProperties.Name="{DynamicResource Strings.Main.LogoName}" />
                     </Border>
 
                     <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
@@ -66,18 +68,20 @@
                                    FontSize="21"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource Sidebar.SelectedText}" />
-                        <TextBlock Text="LOCAL FILE INSPECTION"
-                                   FontSize="9"
+                        <TextBlock Text="{DynamicResource Strings.Main.Strapline}"
+                                   FontSize="11"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource Sidebar.TextMuted}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{DynamicResource Strings.Main.Strapline}"
                                    Margin="1,1,0,0" />
                     </StackPanel>
                 </Grid>
 
                 <!-- Navigation -->
                 <StackPanel Grid.Row="1">
-                    <TextBlock Text="WORKSPACE"
-                               FontSize="9"
+                    <TextBlock Text="{DynamicResource Strings.Main.Workspace}"
+                               FontSize="11"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource Sidebar.TextMuted}"
                                Margin="25,4,0,7" />
@@ -103,10 +107,30 @@
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0"
-                                                   Text="{Binding Glyph}"
                                                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                    FontSize="16"
-                                                   VerticalAlignment="Center" />
+                                                   VerticalAlignment="Center"
+                                                   AutomationProperties.Name="">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="{StaticResource Icon.Home}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Key}" Value="scan">
+                                                            <Setter Property="Text" Value="{StaticResource Icon.Scan}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Key}" Value="quarantine">
+                                                            <Setter Property="Text" Value="{StaticResource Icon.Trash}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Key}" Value="history">
+                                                            <Setter Property="Text" Value="{StaticResource Icon.List}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Key}" Value="settings">
+                                                            <Setter Property="Text" Value="{StaticResource Icon.Gear}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
 
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding Title}"
@@ -137,19 +161,20 @@
                             Margin="14,0">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xEA18;"
+                                <TextBlock Text="{StaticResource Icon.Shield}"
                                            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                            FontSize="14"
                                            Foreground="{DynamicResource Sidebar.Accent}"
-                                           VerticalAlignment="Center" />
-                                <TextBlock Text="On-demand only"
+                                           VerticalAlignment="Center"
+                                           AutomationProperties.Name="" />
+                                <TextBlock Text="{DynamicResource Strings.Main.OnDemandOnly}"
                                            FontSize="12.5"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource Sidebar.Text}"
                                            Margin="8,0,0,0"
                                            VerticalAlignment="Center" />
                             </StackPanel>
-                            <TextBlock Text="No driver, no background protection, no cloud uploads."
+                            <TextBlock Text="{DynamicResource Strings.Main.OnDemandBody}"
                                        FontSize="11"
                                        Foreground="{DynamicResource Sidebar.TextMuted}"
                                        TextWrapping="Wrap"
@@ -160,12 +185,12 @@
 
                 <!-- Footer -->
                 <StackPanel Grid.Row="2" Margin="22,0,22,20">
-                    <TextBlock Text="Keep Microsoft Defender enabled."
-                               FontSize="10.5"
+                    <TextBlock Text="{DynamicResource Strings.Main.KeepDefender}"
+                               FontSize="11"
                                Foreground="{DynamicResource Sidebar.TextMuted}"
                                TextWrapping="Wrap" />
                     <TextBlock Text="{Binding Settings.VersionText}"
-                               FontSize="10"
+                               FontSize="11"
                                Foreground="{DynamicResource Sidebar.TextMuted}"
                                Margin="0,4,0,0" />
                 </StackPanel>
@@ -207,50 +232,82 @@
                         <TextBlock Text="{Binding HeaderStatusText}"
                                    FontSize="12.5"
                                    FontWeight="SemiBold"
-                                   VerticalAlignment="Center" />
+                                   VerticalAlignment="Center"
+                                   controls:LiveRegion.IsEnabled="True" />
                         <Border Width="1" Height="12" Background="{DynamicResource App.Border}" Margin="10,0" />
                         <TextBlock Text="{Binding HeaderStatusDetail}"
                                    Style="{StaticResource Caption}"
-                                   VerticalAlignment="Center" />
+                                   VerticalAlignment="Center"
+                                   controls:LiveRegion.IsEnabled="True" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource IconButton}"
                                 Width="34" Height="34"
-                                Content="{Binding ThemeGlyph}"
                                 Command="{Binding ToggleThemeCommand}"
+                                IsEnabled="{Binding CanToggleTheme}"
                                 ToolTip="{Binding ThemeTooltip}"
-                                AutomationProperties.Name="{Binding ThemeTooltip}" />
+                                AutomationProperties.Name="{Binding ThemeTooltip}">
+                            <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="15"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       AutomationProperties.Name="">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="{StaticResource Icon.Sun}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDarkTheme}" Value="True">
+                                                <Setter Property="Text" Value="{StaticResource Icon.Moon}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding UsesSystemTheme}" Value="True">
+                                                <Setter Property="Text" Value="{StaticResource Icon.SystemTheme}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Button>
                         <Button Style="{StaticResource IconButton}"
                                 Width="34" Height="34"
-                                Content="&#xE713;"
+                                Content="{StaticResource Icon.Gear}"
                                 Command="{Binding OpenSettingsCommand}"
                                 Margin="4,0,0,0"
-                                ToolTip="Settings"
-                                AutomationProperties.Name="Open settings" />
+                                ToolTip="{DynamicResource Strings.Main.SettingsTooltip}"
+                                AutomationProperties.Name="{DynamicResource Strings.Main.SettingsName}" />
                         <Border Width="1" Height="22" Background="{DynamicResource App.Border}" Margin="12,0" />
                         <Button Style="{StaticResource PrimaryButton}"
                                 Height="34"
                                 Command="{Binding QuickScanCommand}"
-                                AutomationProperties.Name="Start a quick scan">
+                                AutomationProperties.Name="{DynamicResource Strings.Main.QuickScanName}">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE721;"
+                                <TextBlock Text="{StaticResource Icon.Search}"
                                            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                            FontSize="13"
                                            Margin="0,0,8,0"
-                                           VerticalAlignment="Center" />
-                                <TextBlock Text="Quick scan" VerticalAlignment="Center" />
+                                           VerticalAlignment="Center"
+                                           AutomationProperties.Name="" />
+                                <TextBlock Text="{DynamicResource Strings.Main.QuickScan}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
                 </Grid>
             </Border>
 
-            <ContentControl Grid.Row="1"
-                            Content="{Binding CurrentPage}"
-                            Margin="28,22,28,26"
-                            HorizontalContentAlignment="Stretch"
-                            VerticalContentAlignment="Stretch" />
+            <!-- The pages. They are created once and kept, so that navigating away
+                 and back does not lose the scroll position or the selection. -->
+            <Grid Grid.Row="1" Margin="28,22,28,26">
+                <views:DashboardView DataContext="{Binding Dashboard}"
+                                     Visibility="{Binding DataContext.IsDashboardCurrent, RelativeSource={RelativeSource AncestorType=Grid}, Converter={StaticResource BooleanToVisibility}}" />
+                <views:ScanView DataContext="{Binding Scan}"
+                                Visibility="{Binding DataContext.IsScanCurrent, RelativeSource={RelativeSource AncestorType=Grid}, Converter={StaticResource BooleanToVisibility}}" />
+                <views:QuarantineView DataContext="{Binding Quarantine}"
+                                      Visibility="{Binding DataContext.IsQuarantineCurrent, RelativeSource={RelativeSource AncestorType=Grid}, Converter={StaticResource BooleanToVisibility}}" />
+                <views:HistoryView DataContext="{Binding History}"
+                                   Visibility="{Binding DataContext.IsHistoryCurrent, RelativeSource={RelativeSource AncestorType=Grid}, Converter={StaticResource BooleanToVisibility}}" />
+                <views:SettingsView DataContext="{Binding Settings}"
+                                    Visibility="{Binding DataContext.IsSettingsCurrent, RelativeSource={RelativeSource AncestorType=Grid}, Converter={StaticResource BooleanToVisibility}}" />
+            </Grid>
         </Grid>
     </Grid>
 </Window>

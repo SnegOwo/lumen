@@ -30,7 +30,7 @@ public static class Presentation
     public static string CategoryHint(FindingCategory category) => Text.CategoryHint(category);
 
     /// <summary>How confident the rule engine is.</summary>
-    public static string ConfidenceText(Confidence confidence) => Text.Confidence(confidence);
+    public static string ConfidenceText(Confidence confidence) => Text.ConfidenceLabel(confidence);
 
     /// <summary>The name of a scan scope.</summary>
     public static string Scope(ScanScopeKind scope) => Text.Scope(scope);

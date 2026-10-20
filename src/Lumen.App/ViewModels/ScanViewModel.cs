@@ -27,14 +27,13 @@ public sealed class ScanScopeOptionViewModel : ObservableObject
         ScanScopeKind scope,
         string title,
         string body,
-        string glyph,
         string automationName,
         Action<ScanScopeKind> select)
     {
         Scope = scope;
+        ScopeKey = scope.ToString();
         Title = title;
         Body = body;
-        Glyph = glyph;
         AutomationName = automationName;
         _select = select;
     }
@@ -42,14 +41,17 @@ public sealed class ScanScopeOptionViewModel : ObservableObject
     /// <summary>The scope this card stands for.</summary>
     public ScanScopeKind Scope { get; }
 
+    /// <summary>
+    /// The name of the scope, as a string. The view uses it to pick the icon of the
+    /// card from the theme resources.
+    /// </summary>
+    public string ScopeKey { get; }
+
     /// <summary>The card title.</summary>
     public string Title { get; }
 
     /// <summary>The one-line explanation under the title.</summary>
     public string Body { get; }
-
-    /// <summary>The icon glyph.</summary>
-    public string Glyph { get; }
 
     /// <summary>The accessible name of the card.</summary>
     public string AutomationName { get; }
@@ -156,28 +158,24 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel, IDisposabl
                 ScanScopeKind.Quick,
                 Text.ScanScopeQuickTitle,
                 Text.ScanScopeQuickBody,
-                "\uE721",
                 Text.ScanScopeQuickName,
                 SelectScopeFromOption),
             new ScanScopeOptionViewModel(
                 ScanScopeKind.FullUserProfile,
                 Text.ScanScopeFullTitle,
                 Text.ScanScopeFullBody,
-                "\uE77B",
                 Text.ScanScopeFullName,
                 SelectScopeFromOption),
             new ScanScopeOptionViewModel(
                 ScanScopeKind.Folder,
                 Text.ScanScopeFolderTitle,
                 Text.ScanScopeFolderBody,
-                "\uE8B7",
                 Text.ScanScopeFolderName,
                 SelectScopeFromOption),
             new ScanScopeOptionViewModel(
                 ScanScopeKind.File,
                 Text.ScanScopeFileTitle,
                 Text.ScanScopeFileBody,
-                "\uE7C3",
                 Text.ScanScopeFileName,
                 SelectScopeFromOption)
         ];
@@ -488,19 +486,31 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel, IDisposabl
     public bool HasSummary
     {
         get => _hasSummary;
-        private set => SetProperty(ref _hasSummary, value);
+        private set
+        {
+            if (!SetProperty(ref _hasSummary, value)) return;
+            OnPropertyChanged(nameof(SummaryAnnouncement));
+        }
     }
 
     public string SummaryTitle
     {
         get => _summaryTitle;
-        private set => SetProperty(ref _summaryTitle, value);
+        private set
+        {
+            if (!SetProperty(ref _summaryTitle, value)) return;
+            OnPropertyChanged(nameof(SummaryAnnouncement));
+        }
     }
 
     public string SummaryMessage
     {
         get => _summaryMessage;
-        private set => SetProperty(ref _summaryMessage, value);
+        private set
+        {
+            if (!SetProperty(ref _summaryMessage, value)) return;
+            OnPropertyChanged(nameof(SummaryAnnouncement));
+        }
     }
 
     public MessageSeverity SummarySeverity
@@ -509,22 +519,42 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel, IDisposabl
         private set => SetProperty(ref _summarySeverity, value);
     }
 
+    /// <summary>
+    /// The summary, in one line. It is announced by the live region of the results
+    /// section, so a screen reader reports the outcome of the scan.
+    /// </summary>
+    public string SummaryAnnouncement => _hasSummary
+        ? SummaryTitle + ". " + SummaryMessage
+        : string.Empty;
+
     public bool HasAction
     {
         get => _hasAction;
-        private set => SetProperty(ref _hasAction, value);
+        private set
+        {
+            if (!SetProperty(ref _hasAction, value)) return;
+            OnPropertyChanged(nameof(ActionAnnouncement));
+        }
     }
 
     public string ActionTitle
     {
         get => _actionTitle;
-        private set => SetProperty(ref _actionTitle, value);
+        private set
+        {
+            if (!SetProperty(ref _actionTitle, value)) return;
+            OnPropertyChanged(nameof(ActionAnnouncement));
+        }
     }
 
     public string ActionMessage
     {
         get => _actionMessage;
-        private set => SetProperty(ref _actionMessage, value);
+        private set
+        {
+            if (!SetProperty(ref _actionMessage, value)) return;
+            OnPropertyChanged(nameof(ActionAnnouncement));
+        }
     }
 
     public MessageSeverity ActionSeverity
@@ -532,6 +562,14 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel, IDisposabl
         get => _actionSeverity;
         private set => SetProperty(ref _actionSeverity, value);
     }
+
+    /// <summary>
+    /// The banner, in one line. It is announced by the live region of the action
+    /// banner, so a screen reader reports what the banner says.
+    /// </summary>
+    public string ActionAnnouncement => _hasAction
+        ? ActionTitle + ". " + ActionMessage
+        : string.Empty;
 
     // ----------------------------------------------------------------------
     // Quarantine progress
@@ -788,7 +826,7 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel, IDisposabl
         _services.Alerts.Show(
             detection,
             detection.FileName,
-            primary?.Title ?? Text.FindingCaption(1),
+            primary?.Title ?? Text.PotentialIssueTitle,
             Presentation.ConfidenceText(primary?.Confidence ?? Confidence.Low));
     }
 
@@ -1239,6 +1277,8 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel, IDisposabl
             nameof(QuarantineProgressText));
 
         foreach (var option in ScopeOptions) option.Refresh();
+        foreach (var detection in Detections) detection.Refresh();
+        foreach (var error in Errors) error.Refresh();
         UpdateScopeSelection();
     }
 

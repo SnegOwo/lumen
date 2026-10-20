@@ -67,7 +67,7 @@ public sealed class ObservableObjectTests
     {
         var (probe, notifications) = CreateProbe();
 
-        probe.SetName("changed");
+        probe.Name = "changed";
 
         Assert.Equal(new[] { "Name" }, notifications);
     }
@@ -87,7 +87,7 @@ public sealed class ObservableObjectTests
     {
         var (probe, notifications) = CreateProbe();
 
-        probe.SetCount(7);
+        probe.Count = 7;
 
         Assert.Equal(new[] { "Count" }, notifications);
         Assert.Equal(7, probe.Count);
@@ -134,14 +134,13 @@ public sealed class ObservableObjectTests
     }
 
     [Fact]
-    public void OnPropertyChanged_withoutAName_raisesPropertyChangedWithNoName()
+    public void OnPropertyChanged_withoutAName_raisesPropertyChangedWithTheCallerMemberName()
     {
         var (probe, notifications) = CreateProbe();
 
         probe.RaiseCaller();
 
-        Assert.Single(notifications);
-        Assert.Null(notifications[0]);
+        Assert.Equal(new[] { "RaiseCaller" }, notifications);
     }
 
     [Fact]
@@ -157,7 +156,7 @@ public sealed class ObservableObjectTests
             captured = args;
         };
 
-        probe.SetName("changed");
+        probe.Name = "changed";
 
         Assert.Same(probe, sender);
         Assert.NotNull(captured);

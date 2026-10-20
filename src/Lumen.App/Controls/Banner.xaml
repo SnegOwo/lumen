@@ -16,7 +16,7 @@
     <Border x:Name="Bar"
             CornerRadius="12"
             BorderThickness="0"
-            Padding="14,12"
+            Padding="12,12"
             AutomationProperties.LiveSetting="Polite"
             AutomationProperties.Name="{Binding Title, ElementName=Root}">
         <Border.Style>
@@ -46,25 +46,25 @@
             <TextBlock x:Name="Icon"
                        Grid.Column="0"
                        FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                       FontSize="16"
-                       Margin="0,1,12,0"
+                       FontSize="{StaticResource Icon.Size.Medium}"
+                       Margin="{StaticResource Space.Horizontal.Md}"
                        VerticalAlignment="Top"
-                       Text="&#xE946;"
+                       Text="{StaticResource Icon.Info}"
                        AutomationProperties.Name="">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Foreground" Value="{DynamicResource Info.Text}" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding Severity, ElementName=Root}" Value="{x:Static dialogs:MessageSeverity.Success}">
-                                <Setter Property="Text" Value="&#xE73E;" />
+                                <Setter Property="Text" Value="{StaticResource Icon.Check}" />
                                 <Setter Property="Foreground" Value="{DynamicResource Success.Text}" />
                             </DataTrigger>
                             <DataTrigger Binding="{Binding Severity, ElementName=Root}" Value="{x:Static dialogs:MessageSeverity.Warning}">
-                                <Setter Property="Text" Value="&#xE7BA;" />
+                                <Setter Property="Text" Value="{StaticResource Icon.Warning}" />
                                 <Setter Property="Foreground" Value="{DynamicResource Warning.Text}" />
                             </DataTrigger>
                             <DataTrigger Binding="{Binding Severity, ElementName=Root}" Value="{x:Static dialogs:MessageSeverity.Danger}">
-                                <Setter Property="Text" Value="&#xEA39;" />
+                                <Setter Property="Text" Value="{StaticResource Icon.Error}" />
                                 <Setter Property="Foreground" Value="{DynamicResource Danger.Text}" />
                             </DataTrigger>
                         </Style.Triggers>
@@ -83,15 +83,15 @@
                            FontSize="12.5"
                            Foreground="{DynamicResource App.TextSecondary}"
                            TextWrapping="Wrap"
-                           Margin="0,3,0,0" />
+                           Margin="{StaticResource Space.Top.Xs}" />
             </StackPanel>
 
             <Button Grid.Column="2"
                     Style="{StaticResource IconButton}"
-                    Width="28" Height="28"
+                    Width="{StaticResource Control.Height.Small}" Height="{StaticResource Control.Height.Small}"
                     Margin="10,0,0,0"
                     VerticalAlignment="Top"
-                    Content="&#xE711;"
+                    Content="{StaticResource Icon.Dismiss}"
                     ToolTip="Dismiss"
                     AutomationProperties.Name="Dismiss message"
                     Visibility="{Binding ShowClose, ElementName=Root, Converter={StaticResource BoolToVisibility}}"

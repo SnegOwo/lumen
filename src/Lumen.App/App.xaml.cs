@@ -13,6 +13,7 @@ public partial class App : Application
     private bool _ownsMutex;
     private AppServices? _services;
     private MainViewModel? _viewModel;
+    private EasterEggs.EasterEggs? _easterEggs;
     private bool _handlingUiCrash;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -61,6 +62,11 @@ public partial class App : Application
             window.Show();
             _viewModel.Navigate("dashboard");
 
+            // The joke layer. It changes colours and moves a cat; it never changes how a
+            // file is inspected or how a match is reported.
+            _easterEggs = new EasterEggs.EasterEggs(window, _services);
+            _easterEggs.Install();
+
             // A demonstration run: raise the detection alert on a harmless sample so
             // the whole pipeline can be shown without real malware.
             if (e.Args.Any(argument => string.Equals(argument, "--demo", StringComparison.OrdinalIgnoreCase)))
@@ -74,6 +80,17 @@ public partial class App : Application
             if (shotsIndex >= 0)
             {
                 var dir = shotsIndex + 1 < e.Args.Length ? e.Args[shotsIndex + 1] : "shots";
+                try
+                {
+                    Directory.CreateDirectory(dir);
+                    File.WriteAllText(
+                        Path.Combine(dir, "capture-errors.txt"),
+                        "args: " + string.Join(" | ", e.Args) + Environment.NewLine);
+                }
+                catch (Exception)
+                {
+                    // The real error is reported by the capture itself.
+                }
                 Dispatcher.BeginInvoke(new Action(() => CapturePages(window, _viewModel, dir)));
             }
 
@@ -116,7 +133,7 @@ public partial class App : Application
     /// reviewed without a human clicking through it, and so a change to the design can be
     /// compared page by page.
     /// </summary>
-    private static void CapturePages(Window window, MainViewModel? viewModel, string directory)
+    private void CapturePages(Window window, MainViewModel? viewModel, string directory)
     {
         if (viewModel is null) return;
 
@@ -147,7 +164,8 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                _services?.Log.Warn("Screenshots", "A page could not be captured: " + page.Key, ex);
+                try { _services?.Log.Warn("Screenshots", "A page could not be captured: " + page.Key, ex); }
+                catch { /* Logging must not mask the capture failure. */ }
             }
 
             var timer = new DispatcherTimer(DispatcherPriority.Background)
@@ -166,14 +184,21 @@ public partial class App : Application
         Step();
     }
 
-    private static void Save(Window window, string directory, string name)
+    private void Save(Window window, string directory, string name)
     {
         try
         {
             var width = (int)Math.Max(1, window.ActualWidth);
             var height = (int)Math.Max(1, window.ActualHeight);
-            if (width < 10 || height < 10) return;
+            if (width < 10 || height < 10)
+            {
+                Report(directory, name, "The window has no size yet (" + width + "x" + height + ").");
+                return;
+            }
 
+            // The Window itself must be rendered, not its content: the window paints its
+            // own background, and rendering only the content leaves the page area
+            // transparent (which comes out black in a bitmap).
             var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
                 width, height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
             bitmap.Render(window);
@@ -185,9 +210,24 @@ public partial class App : Application
             using var stream = File.Create(path);
             encoder.Save(stream);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex)
         {
-            // A screenshot that fails is not worth crashing over.
+            Report(directory, name, ex.GetType().Name + ": " + ex.Message);
+        }
+    }
+
+    private static void Report(string directory, string name, string message)
+    {
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.AppendAllText(
+                Path.Combine(directory, "capture-errors.txt"),
+                name + " -> " + message + Environment.NewLine);
+        }
+        catch
+        {
+            // Reporting is best effort.
         }
     }
 
@@ -195,6 +235,15 @@ public partial class App : Application
         try
         {
             _viewModel?.Dispose();
+        }
+        catch
+        {
+            // Best-effort disposal during shutdown.
+        }
+
+        try
+        {
+            _easterEggs?.Dispose();
         }
         catch
         {

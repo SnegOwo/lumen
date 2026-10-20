@@ -4,18 +4,11 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:Lumen.App.Controls"
-             xmlns:infra="clr-namespace:Lumen.App.Infrastructure"
              xmlns:vm="clr-namespace:Lumen.App.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:QuarantineViewModel}"
              d:DesignWidth="1100"
              d:DesignHeight="820">
-
-    <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
-        <infra:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
-        <infra:EmptyStringToVisibilityConverter x:Key="EmptyStringToVisibility" />
-    </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
@@ -31,39 +24,39 @@
 
                 <StackPanel Grid.Column="0">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Quarantine" Style="{StaticResource PageTitle}" />
+                        <TextBlock Text="{DynamicResource Strings.Quarantine.Title}" Style="{StaticResource PageTitle}" />
                         <Border Style="{StaticResource ChipBorder}" Margin="12,9,0,0" VerticalAlignment="Top">
                             <TextBlock Text="{Binding CountText}" Style="{StaticResource ChipText}" />
                         </Border>
                     </StackPanel>
-                    <TextBlock Text="Encrypted, integrity-checked copies that only you can restore or delete."
-                               Style="{StaticResource PageSubtitle}" />
+                    <TextBlock Text="{DynamicResource Strings.Quarantine.Subtitle}" Style="{StaticResource PageSubtitle}" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource SecondaryButton}"
                             Command="{Binding OpenVaultCommand}"
-                            AutomationProperties.Name="Open the quarantine vault folder">
+                            AutomationProperties.Name="{DynamicResource Strings.Quarantine.OpenVaultName}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                       FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center" />
-                            <TextBlock Text="Open vault folder" VerticalAlignment="Center" />
+                            <TextBlock Text="{StaticResource Icon.Folder}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"
+                                       AutomationProperties.Name="" />
+                            <TextBlock Text="{DynamicResource Strings.Quarantine.OpenVault}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource IconButton}"
                             Command="{Binding RefreshCommand}"
-                            Content="&#xE72C;"
+                            Content="{StaticResource Icon.Refresh}"
                             Margin="8,0,0,0"
-                            ToolTip="Refresh the vault"
-                            AutomationProperties.Name="Refresh quarantine items" />
+                            ToolTip="{DynamicResource Strings.Quarantine.RefreshVault}"
+                            AutomationProperties.Name="{DynamicResource Strings.Quarantine.RefreshVaultName}" />
                 </StackPanel>
             </Grid>
 
-            <controls:Banner Title="Some quarantine data could not be read"
+            <controls:Banner Title="{DynamicResource Strings.Quarantine.ReadWarningTitle}"
                              Message="{Binding WarningText}"
                              Severity="Warning"
                              Margin="0,0,0,14"
-                             Visibility="{Binding HasWarning, Converter={StaticResource BoolToVisibility}}" />
+                             Visibility="{Binding HasWarning, Converter={StaticResource BooleanToVisibility}}" />
 
             <controls:Banner Title="{Binding BannerTitle}"
                              Message="{Binding BannerMessage}"
@@ -71,23 +64,51 @@
                              ShowClose="True"
                              CloseCommand="{Binding DismissBannerCommand}"
                              Margin="0,0,0,14"
-                             Visibility="{Binding HasBanner, Converter={StaticResource BoolToVisibility}}" />
+                             Visibility="{Binding HasBanner, Converter={StaticResource BooleanToVisibility}}" />
+
+            <!-- The banner is announced to a screen reader. The live region sits in
+                 a zero-height grid, so it costs nothing on screen. -->
+            <Grid Height="0">
+                <TextBlock Text="{Binding BannerAnnouncement}"
+                           controls:LiveRegion.IsEnabled="True" />
+            </Grid>
+
+            <!-- The vault is busy. The user has to see that something is happening. -->
+            <Border Style="{StaticResource Card}"
+                    Margin="0,0,0,14"
+                    Visibility="{Binding HasWorkProgress, Converter={StaticResource BooleanToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource Strings.Quarantine.WorkTitle}"
+                               Style="{StaticResource CardTitle}"
+                               controls:LiveRegion.IsEnabled="True" />
+                    <ProgressBar Style="{StaticResource ScanProgressBar}"
+                                 IsIndeterminate="True"
+                                 Margin="0,12,0,0"
+                                 AutomationProperties.Name="{DynamicResource Strings.Quarantine.WorkName}" />
+                    <TextBlock Text="{Binding WorkingLabel}"
+                               Style="{StaticResource Mono}"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap"
+                               Margin="0,10,0,0"
+                               ToolTip="{Binding WorkingLabel}" />
+                </StackPanel>
+            </Border>
 
             <!-- Empty vault -->
             <Border Style="{StaticResource Card}"
                     MinHeight="390"
-                    Visibility="{Binding HasItems, Converter={StaticResource InverseBoolToVisibility}}">
-                <controls:EmptyState Glyph="&#xE72E;"
-                                     Title="The vault is empty"
+                    Visibility="{Binding HasItems, Converter={StaticResource InverseBooleanToVisibility}}">
+                <controls:EmptyState Glyph="{StaticResource Icon.Trash}"
+                                     Title="{DynamicResource Strings.Quarantine.EmptyTitle}"
                                      Message="{Binding EmptyDetail}"
-                                     ActionText="Run a scan"
+                                     ActionText="{DynamicResource Strings.Quarantine.RunScan}"
                                      ActionCommand="{Binding GoToScanCommand}" />
             </Border>
 
             <!-- Vault items -->
-            <Grid Visibility="{Binding HasItems, Converter={StaticResource BoolToVisibility}}">
+            <Grid Visibility="{Binding HasItems, Converter={StaticResource BooleanToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="380" />
+                    <ColumnDefinition Width="1*" MinWidth="260" MaxWidth="380" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
@@ -103,7 +124,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Encrypted items" Style="{StaticResource Label}" />
+                            <TextBlock Text="{DynamicResource Strings.Quarantine.EncryptedItems}" Style="{StaticResource Label}" />
                             <TextBlock Grid.Column="1" Text="{Binding CountText}" Style="{StaticResource Caption}" />
                         </Grid>
 
@@ -112,7 +133,7 @@
                                  ItemsSource="{Binding Items}"
                                  SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
                                  MaxHeight="540"
-                                 AutomationProperties.Name="Quarantined files">
+                                 AutomationProperties.Name="{DynamicResource Strings.Quarantine.ItemsName}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Grid>
@@ -124,12 +145,13 @@
                                         <Border Grid.Column="0" Width="36" Height="36" CornerRadius="10"
                                                 Background="{DynamicResource Accent.Soft}"
                                                 VerticalAlignment="Top">
-                                            <TextBlock Text="&#xE72E;"
+                                            <TextBlock Text="{StaticResource Icon.Trash}"
                                                        FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                        FontSize="14"
                                                        Foreground="{DynamicResource Accent.Text}"
                                                        HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center" />
+                                                       VerticalAlignment="Center"
+                                                       AutomationProperties.Name="" />
                                         </Border>
 
                                         <StackPanel Grid.Column="1" Margin="10,0,0,0">
@@ -137,26 +159,28 @@
                                                        FontWeight="SemiBold"
                                                        FontSize="13"
                                                        TextTrimming="CharacterEllipsis"
-                                                       TextWrapping="NoWrap" />
+                                                       TextWrapping="NoWrap"
+                                                       ToolTip="{Binding FileName}" />
                                             <TextBlock Text="{Binding OriginalPath}"
                                                        Style="{StaticResource Caption}"
                                                        FontSize="11"
                                                        TextTrimming="CharacterEllipsis"
                                                        TextWrapping="NoWrap"
-                                                       Margin="0,2,0,0" />
+                                                       Margin="0,2,0,0"
+                                                       ToolTip="{Binding OriginalPath}" />
                                             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                                                 <Border Style="{StaticResource ChipBorder}" Padding="6,1">
-                                                    <TextBlock Text="{Binding CategoryLabel}" Style="{StaticResource ChipText}" FontSize="10" />
+                                                    <TextBlock Text="{Binding CategoryLabel}" Style="{StaticResource ChipText}" FontSize="11" />
                                                 </Border>
                                                 <TextBlock Text="{Binding SizeText}"
                                                            Style="{StaticResource Caption}"
-                                                           FontSize="10.5"
+                                                           FontSize="11"
                                                            Margin="8,0,0,0"
                                                            VerticalAlignment="Center" />
                                             </StackPanel>
                                             <TextBlock Text="{Binding RelativeText}"
                                                        Style="{StaticResource Caption}"
-                                                       FontSize="10.5"
+                                                       FontSize="11"
                                                        Margin="0,4,0,0" />
                                         </StackPanel>
                                     </Grid>
@@ -171,7 +195,7 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"
                                       MaxHeight="560"
-                                      Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
+                                      Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibility}}">
                             <StackPanel Margin="0,0,8,0">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -208,15 +232,16 @@
                                         CornerRadius="10"
                                         Padding="12,10"
                                         Margin="0,10,0,0"
-                                        Visibility="{Binding SelectedItem.OriginalExists, Converter={StaticResource BoolToVisibility}}">
+                                        Visibility="{Binding SelectedItem.OriginalExists, Converter={StaticResource BooleanToVisibility}}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE946;"
+                                        <TextBlock Text="{StaticResource Icon.Info}"
                                                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                    FontSize="13"
                                                    Foreground="{DynamicResource Info.Text}"
                                                    Margin="0,1,8,0"
-                                                   VerticalAlignment="Top" />
-                                        <TextBlock Text="The original file still exists at its original location. It was not removed when the copy was quarantined."
+                                                   VerticalAlignment="Top"
+                                                   AutomationProperties.Name="" />
+                                        <TextBlock Text="{DynamicResource Strings.Quarantine.OriginalExists}"
                                                    FontSize="12.5"
                                                    Foreground="{DynamicResource App.TextPrimary}"
                                                    TextWrapping="Wrap" />
@@ -227,9 +252,9 @@
                                         CornerRadius="10"
                                         Padding="12,10"
                                         Margin="0,10,0,0"
-                                        Visibility="{Binding SelectedItem.HasNote, Converter={StaticResource BoolToVisibility}}">
+                                        Visibility="{Binding SelectedItem.HasNote, Converter={StaticResource BooleanToVisibility}}">
                                     <StackPanel>
-                                        <TextBlock Text="Note" Style="{StaticResource Label}" FontSize="12" />
+                                        <TextBlock Text="{DynamicResource Strings.Quarantine.Note}" Style="{StaticResource Label}" FontSize="12" />
                                         <TextBlock Text="{Binding SelectedItem.Note}"
                                                    Style="{StaticResource BodySecondary}"
                                                    FontSize="12"
@@ -242,7 +267,7 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Quarantined" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{DynamicResource Strings.Quarantine.Quarantined}" Style="{StaticResource Caption}" />
                                     <TextBlock Grid.Column="1" Text="{Binding SelectedItem.DateText}"
                                                Style="{StaticResource Caption}"
                                                Foreground="{DynamicResource App.TextPrimary}"
@@ -253,7 +278,7 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Size" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{DynamicResource Strings.Quarantine.Size}" Style="{StaticResource Caption}" />
                                     <TextBlock Grid.Column="1" Text="{Binding SelectedItem.SizeText}"
                                                Style="{StaticResource Caption}"
                                                Foreground="{DynamicResource App.TextPrimary}"
@@ -264,11 +289,12 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="SHA-256" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{DynamicResource Strings.Quarantine.Sha256}" Style="{StaticResource Caption}" />
                                     <TextBlock Grid.Column="1" Text="{Binding SelectedItem.HashShort}"
                                                Style="{StaticResource Mono}"
                                                FontSize="11"
                                                HorizontalAlignment="Right"
+                                               TextTrimming="CharacterEllipsis"
                                                ToolTip="{Binding SelectedItem.Source.Sha256}" />
                                 </Grid>
 
@@ -277,52 +303,51 @@
                                 <StackPanel Orientation="Horizontal">
                                     <Button Style="{StaticResource PrimaryButton}"
                                             Command="{Binding RestoreCommand}"
-                                            Content="Restore"
+                                            Content="{DynamicResource Strings.Quarantine.Restore}"
                                             MinWidth="104"
-                                            AutomationProperties.Name="Restore the selected file" />
+                                            AutomationProperties.Name="{DynamicResource Strings.Quarantine.RestoreName}" />
                                     <Button Style="{StaticResource SecondaryButton}"
                                             Command="{Binding RestoreToCommand}"
-                                            Content="Restore to&#x2026;"
+                                            Content="{DynamicResource Strings.Quarantine.RestoreTo}"
                                             Margin="8,0,0,0"
-                                            AutomationProperties.Name="Restore the selected file to another folder" />
+                                            AutomationProperties.Name="{DynamicResource Strings.Quarantine.RestoreToName}" />
                                     <Button Style="{StaticResource DangerOutlineButton}"
                                             Command="{Binding DeleteCommand}"
-                                            Content="Delete permanently"
+                                            Content="{DynamicResource Strings.Quarantine.Delete}"
                                             Margin="8,0,0,0"
-                                            AutomationProperties.Name="Permanently delete the encrypted copy" />
+                                            AutomationProperties.Name="{DynamicResource Strings.Quarantine.DeleteName}" />
                                 </StackPanel>
 
                                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                    <Button Content="Show original"
+                                    <Button Content="{DynamicResource Strings.Quarantine.CleanFile}"
+                                            Style="{StaticResource DangerOutlineButton}"
+                                            Command="{Binding CleanFileCommand}"
+                                            Height="32"
+                                            AutomationProperties.Name="{DynamicResource Strings.Quarantine.CleanFileName}" />
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Content="{DynamicResource Strings.Quarantine.ShowOriginal}"
                                             Style="{StaticResource LinkButton}"
                                             Command="{Binding RevealOriginalCommand}"
-                                            AutomationProperties.Name="Show the original file if it still exists" />
-                                    <Button Content="Copy original path"
+                                            AutomationProperties.Name="{DynamicResource Strings.Quarantine.ShowOriginalName}" />
+                                    <Button Content="{DynamicResource Strings.Quarantine.CopyOriginalPath}"
                                             Style="{StaticResource LinkButton}"
                                             Command="{Binding CopyPathCommand}"
                                             Margin="14,0,0,0"
-                                            AutomationProperties.Name="Copy the original file path" />
+                                            AutomationProperties.Name="{DynamicResource Strings.Quarantine.CopyOriginalPathName}" />
                                 </StackPanel>
 
-                                <TextBlock Text="Restore decrypts the copy, verifies its SHA-256 hash, and only then writes the file. The encrypted copy is kept if verification fails."
+                                <TextBlock Text="{DynamicResource Strings.Quarantine.RestoreExplainer}"
                                            Style="{StaticResource Caption}"
                                            Margin="0,12,0,0" />
                             </StackPanel>
                         </ScrollViewer>
 
-                        <StackPanel HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Visibility="{Binding HasSelection, Converter={StaticResource InverseBoolToVisibility}}">
-                            <TextBlock Text="&#xE72E;"
-                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                       FontSize="32"
-                                       Foreground="{DynamicResource App.TextMuted}"
-                                       HorizontalAlignment="Center" />
-                            <TextBlock Text="Select an item to review it"
-                                       Style="{StaticResource BodySecondary}"
-                                       Margin="0,10,0,0"
-                                       TextAlignment="Center" />
-                        </StackPanel>
+                        <controls:EmptyState Glyph="{StaticResource Icon.Trash}"
+                                             Title="{DynamicResource Strings.Quarantine.SelectItemTitle}"
+                                             Message="{DynamicResource Strings.Quarantine.SelectItem}"
+                                             Visibility="{Binding HasSelection, Converter={StaticResource InverseBooleanToVisibility}}" />
                     </Grid>
                 </Border>
             </Grid>
@@ -336,26 +361,27 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Column="0" Text="&#xE72E;"
+                    <TextBlock Grid.Column="0" Text="{StaticResource Icon.Trash}"
                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                FontSize="17"
                                Foreground="{DynamicResource Accent.Text}"
-                               VerticalAlignment="Center" />
+                               VerticalAlignment="Center"
+                               AutomationProperties.Name="" />
 
                     <StackPanel Grid.Column="1" Margin="12,0,14,0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding VaultSummary}" Style="{StaticResource Label}" FontSize="12.5" />
-                        <TextBlock Text="AES-256-CBC encryption &#x00B7; HMAC-SHA256 integrity &#x00B7; per-user DPAPI-protected keys"
+                        <TextBlock Text="{DynamicResource Strings.Quarantine.VaultTech}"
                                    Style="{StaticResource Caption}"
                                    FontSize="11.5"
                                    Margin="0,2,0,0" />
                     </StackPanel>
 
                     <Button Grid.Column="2"
-                            Content="Open folder"
+                            Content="{DynamicResource Strings.Quarantine.OpenFolder}"
                             Style="{StaticResource LinkButton}"
                             Command="{Binding OpenVaultCommand}"
                             VerticalAlignment="Center"
-                            AutomationProperties.Name="Open the encrypted vault folder" />
+                            AutomationProperties.Name="{DynamicResource Strings.Quarantine.OpenFolderName}" />
                 </Grid>
             </Border>
         </StackPanel>

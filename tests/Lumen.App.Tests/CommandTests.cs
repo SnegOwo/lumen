@@ -168,13 +168,8 @@ public sealed class CommandTests
     [Fact]
     public async Task AsyncRelayCommand_execute_raisesCanExecuteChangedWhileRunning()
     {
-        var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var raisedWhileRunning = 0;
-        var command = new AsyncRelayCommand(async () =>
-        {
-            await Task.Delay(20);
-            completed.SetResult(true);
-        });
+        var command = new AsyncRelayCommand(async () => await Task.Delay(20));
 
         command.CanExecuteChanged += (_, _) =>
         {
@@ -183,7 +178,12 @@ public sealed class CommandTests
 
         command.Execute(null);
 
-        await completed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        // The command clears its running flag when the operation is finished.
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (command.IsRunning && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
 
         Assert.True(raisedWhileRunning > 0);
         Assert.False(command.IsRunning);

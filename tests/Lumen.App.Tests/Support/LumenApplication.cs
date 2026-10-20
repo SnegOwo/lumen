@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Markup;
 using System.Xml.Linq;
@@ -18,9 +19,6 @@ namespace Lumen.App.Tests.Support;
 internal static class LumenApplication
 {
     private const string PackPrefix = "/Lumen;component/";
-
-    private static readonly XNamespace Presentation =
-        "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
 
     private static Application? _application;
     private static bool _resourcesInstalled;
@@ -53,9 +51,16 @@ internal static class LumenApplication
 
         var application = EnsureCore();
 
-        application.Resources.MergedDictionaries.Add(LoadDictionaryCore("themes/controls.xaml"));
-        application.Resources.MergedDictionaries.Add(LoadDictionaryCore("themes/datemplates.xaml"));
-        application.Resources.MergedDictionaries.Add(LoadApplicationResourcesFromSource());
+        // Every dictionary is loaded before any of them is merged: WPF can
+        // only resolve one pack resource at a time while a dictionary is being
+        // attached to the application resources.
+        var theme = LoadDictionaryCore(ThemeRelativePath("Controls.xaml"));
+        var templates = LoadDictionaryCore(ThemeRelativePath("DataTemplates.xaml"));
+        var converters = LoadApplicationResourcesFromSource();
+
+        application.Resources.MergedDictionaries.Add(theme);
+        application.Resources.MergedDictionaries.Add(templates);
+        application.Resources.MergedDictionaries.Add(converters);
 
         _resourcesInstalled = true;
     });
@@ -73,7 +78,12 @@ internal static class LumenApplication
 
     /// <summary>Creates an instance of a compiled view, which loads its XAML.</summary>
     public static object CreateView(string relativePath) => WpfHost.Shared.Invoke(() =>
-        Activator.CreateInstance(TypeFor(relativePath))!);
+    {
+        var type = TypeFor(relativePath)
+            ?? throw new InvalidOperationException($"'{relativePath}' does not declare an x:Class.");
+
+        return Activator.CreateInstance(type)!;
+    });
 
     /// <summary>The type declared by the <c>x:Class</c> attribute of the file.</summary>
     public static Type? TypeFor(string relativePath)
@@ -88,53 +98,144 @@ internal static class LumenApplication
     }
 
     private static Uri PackUri(string relativePath) =>
-        new(PackPrefix + relativePath.ToLowerInvariant(), UriKind.Relative);
+        new(PackPrefix + relativePath, UriKind.Relative);
+
+    /// <summary>
+    /// The path of a theme file, with the casing the file system uses. The
+    /// pack resource names keep that casing, so it has to be preserved.
+    /// </summary>
+    private static string ThemeRelativePath(string fileName)
+    {
+        var match = SourceTree.ThemeFiles.FirstOrDefault(path =>
+            path.EndsWith(fileName, StringComparison.OrdinalIgnoreCase));
+
+        if (match is null) throw new InvalidOperationException($"Themes/{fileName} was not found.");
+
+        return SourceTree.Relative(match);
+    }
 
     private static void UseLumenResourceAssembly()
     {
         var target = typeof(global::Lumen.App.App).Assembly;
         if (Application.ResourceAssembly == target) return;
 
-        var setter = typeof(Application)
-            .GetProperty(nameof(Application.ResourceAssembly), BindingFlags.Public | BindingFlags.Static)
-            ?.GetSetMethod(nonPublic: true);
+        // The public setter refuses to run once the property has a value, and
+        // the test host always has one (the entry assembly). The backing field
+        // is therefore written directly: the test host owns its own process
+        // and nothing else reads it.
+        var field = typeof(Application)
+            .GetFields(BindingFlags.NonPublic | BindingFlags.Static)
+            .FirstOrDefault(candidate =>
+                candidate.FieldType == typeof(Assembly) &&
+                candidate.Name.Contains("resourceAssembly", StringComparison.OrdinalIgnoreCase));
 
-        if (setter is null)
+        if (field is null)
         {
             throw new InvalidOperationException(
-                "Application.ResourceAssembly cannot be set, so the compiled Lumen XAML cannot be loaded.");
+                "The WPF resource assembly cannot be redirected, so the compiled Lumen XAML cannot be loaded.");
         }
 
-        setter.Invoke(null, new object[] { target });
+        field.SetValue(null, target);
     }
 
     /// <summary>
-    /// Reads the converters that <c>App.xaml</c> declares. The merged
+    /// Reads the resources that <c>App.xaml</c> declares. The merged
     /// dictionaries of that file are skipped: they are loaded from their
     /// compiled form instead, because a relative <c>Source</c> cannot be
     /// resolved by the loose XAML parser.
+    ///
+    /// <para>
+    /// The file is rewritten as text instead of being re-serialised from an
+    /// XML document: only the original text keeps the namespace prefixes of
+    /// the elements, and a prefixed element is the only way the loose parser
+    /// can resolve a type from a CLR namespace.
+    /// </para>
     /// </summary>
     private static ResourceDictionary LoadApplicationResourcesFromSource()
     {
         var path = Path.Combine(SourceTree.AppProjectDirectory, "App.xaml");
-        var document = XDocument.Load(path);
-        var root = document.Root!;
+        var text = File.ReadAllText(path);
 
-        var resources = root.Elements().FirstOrDefault(element => element.Name.LocalName == "Application.Resources");
-        var inner = resources?.Elements().FirstOrDefault(element => element.Name.LocalName == "ResourceDictionary");
+        var rootTag = SliceTag(text, "<Application");
+        var declarations = NamespaceDeclarations(rootTag)
+            .Select(declaration => WithAssembly(declaration))
+            .ToArray();
 
-        var dictionary = new XElement(Presentation + "ResourceDictionary",
-            root.Attributes().Where(attribute => attribute.IsNamespaceDeclaration));
+        var resourcesTag = "<Application.Resources";
+        var resourcesStart = text.IndexOf(resourcesTag, StringComparison.Ordinal);
+        if (resourcesStart < 0) return new ResourceDictionary();
 
-        if (inner is not null)
+        var contentStart = text.IndexOf('>', resourcesStart) + 1;
+        var contentEnd = text.IndexOf("</Application.Resources>", contentStart, StringComparison.Ordinal);
+        var inner = text[contentStart..contentEnd];
+
+        var dictionaryStart = inner.IndexOf("<ResourceDictionary", StringComparison.Ordinal);
+        if (dictionaryStart < 0) return new ResourceDictionary();
+
+        var childrenStart = inner.IndexOf('>', dictionaryStart) + 1;
+        var childrenEnd = inner.LastIndexOf("</ResourceDictionary>", StringComparison.Ordinal);
+        var children = inner[childrenStart..childrenEnd];
+
+        // The merged dictionaries are loaded from their compiled form instead:
+        // a relative Source cannot be resolved by the loose XAML parser.
+        children = RemoveMergedDictionaries(children);
+
+        var rewritten =
+            "<ResourceDictionary " + string.Join(' ', declarations) + ">" + children + "</ResourceDictionary>";
+
+        return (ResourceDictionary)XamlReader.Parse(rewritten);
+    }
+
+    private static string RemoveMergedDictionaries(string children)
+    {
+        const string open = "<ResourceDictionary.MergedDictionaries";
+        const string close = "</ResourceDictionary.MergedDictionaries>";
+
+        var start = children.IndexOf(open, StringComparison.Ordinal);
+        if (start < 0) return children;
+
+        var end = children.IndexOf(close, start, StringComparison.Ordinal);
+        if (end < 0) return children[..start];
+
+        end += close.Length;
+
+        return children[..start] + children[end..];
+    }
+
+    /// <summary>The text of the first tag that starts with the given name.</summary>
+    private static string SliceTag(string text, string tagName)
+    {
+        var start = text.IndexOf(tagName, StringComparison.Ordinal);
+        if (start < 0) return string.Empty;
+
+        var end = text.IndexOf('>', start);
+        return end < 0 ? string.Empty : text[start..(end + 1)];
+    }
+
+    private static IReadOnlyList<string> NamespaceDeclarations(string tag)
+    {
+        var declarations = new List<string>();
+
+        foreach (Match match in Regex.Matches(tag, "xmlns(?::[A-Za-z0-9_.-]+)?\\s*=\\s*\"[^\"]*\""))
         {
-            foreach (var child in inner.Elements())
-            {
-                if (child.Name.LocalName == "ResourceDictionary.MergedDictionaries") continue;
-                dictionary.Add(child);
-            }
+            declarations.Add(match.Value);
         }
 
-        return (ResourceDictionary)XamlReader.Parse(dictionary.ToString());
+        return declarations;
+    }
+
+    /// <summary>
+    /// The loose XAML parser does not know which assembly a
+    /// <c>clr-namespace</c> belongs to, so the assembly is added here.
+    /// </summary>
+    private static string WithAssembly(string declaration)
+    {
+        if (!declaration.Contains("clr-namespace:", StringComparison.Ordinal)) return declaration;
+        if (declaration.Contains(";assembly=", StringComparison.OrdinalIgnoreCase)) return declaration;
+
+        var quote = declaration.LastIndexOf('"');
+        if (quote < 0) return declaration;
+
+        return declaration[..quote] + ";assembly=Lumen" + declaration[quote..];
     }
 }

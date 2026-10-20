@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Windows;
 using Lumen.App.Dialogs;
+using Lumen.App.Localization;
 using Lumen.App.Services;
 using Lumen.App.ViewModels;
 
@@ -20,6 +21,10 @@ public partial class MainWindow : Window
 
         InitializeComponent();
         DataContext = viewModel;
+
+        // The interface language follows the saved settings from the very first
+        // frame, so the window never flashes the wrong language.
+        Text.Set(services.Language);
 
         var workArea = SystemParameters.WorkArea;
         Width = Math.Min(1320, Math.Max(MinWidth, workArea.Width - 64));
@@ -99,10 +104,9 @@ public partial class MainWindow : Window
         if (!_viewModel.Scan.IsScanning) return true;
 
         var proceed = _services.Dialogs.Confirm(
-            "Stop the scan and exit?",
-            "A scan is still running. Exiting will stop it before it finishes. " +
-            "Results collected so far are kept, and no files will be changed.",
-            "Stop scan and exit",
+            Text.ExitStopScanTitle,
+            Text.ExitStopScanBody,
+            Text.ExitStopScanConfirm,
             danger: true);
         if (!proceed) return false;
 
@@ -115,7 +119,7 @@ public partial class MainWindow : Window
         if (_trayHintShown) return;
         _trayHintShown = true;
         _services.Tray?.Notify(
-            "Lumen is still running",
-            "Use the notification-area icon to reopen Lumen or exit. You can change this behavior in Settings.");
+            Text.TrayStillRunningTitle,
+            Text.TrayStillRunningBody);
     }
 }

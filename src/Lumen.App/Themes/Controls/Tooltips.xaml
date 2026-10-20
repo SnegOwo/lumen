@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:infra="clr-namespace:Lumen.App.Infrastructure">
 
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="../Tokens.xaml" />
@@ -11,6 +12,10 @@
          A single floating surface with a soft shadow. The shadow colour comes
          from the active theme (App.ShadowColor) so that it follows the theme
          instead of being a hard coded black.
+
+         The tip fades in over Motion.Normal. The resting opacity is already
+         close to one, so the animation is a refinement and never a
+         precondition for the tip being readable.
          ===================================================================== -->
 
     <Style TargetType="ToolTip">
@@ -20,16 +25,32 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToolTip">
-                    <Border Background="{DynamicResource Tooltip.Background}"
+                    <Border x:Name="Root"
+                            Background="{DynamicResource Tooltip.Background}"
                             CornerRadius="{StaticResource Radius.Sm}"
-                            Padding="{StaticResource Space.Inset.Sm}"
-                            Margin="6">
+                            Padding="{StaticResource Space.Sm}"
+                            Margin="{StaticResource Space.Xs}"
+                            Opacity="0.85">
                         <Border.Effect>
                             <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.2"
                                               Color="{DynamicResource App.ShadowColor}" />
                         </Border.Effect>
                         <ContentPresenter />
                     </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsVisible" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Root"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="{infra:Motion Motion.Normal}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

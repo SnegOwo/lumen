@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:charts="clr-namespace:Lumen.App.Views.Charts"
              xmlns:controls="clr-namespace:Lumen.App.Controls"
              xmlns:vm="clr-namespace:Lumen.App.ViewModels"
              mc:Ignorable="d"
@@ -11,40 +12,34 @@
              d:DesignHeight="820">
 
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
-
         <Style x:Key="HeroPrimaryButton" TargetType="Button" BasedOn="{StaticResource ButtonBase}">
-            <Setter Property="Background" Value="#F0FDFA" />
-            <Setter Property="Foreground" Value="#082F2C" />
-            <Setter Property="BorderBrush" Value="#F0FDFA" />
+            <Setter Property="Background" Value="{DynamicResource Hero.ButtonBg}" />
+            <Setter Property="Foreground" Value="{DynamicResource Hero.ButtonFg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Hero.ButtonBorder}" />
             <Setter Property="Height" Value="40" />
             <Setter Property="Padding" Value="18,0" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#CCFBF1" />
-                    <Setter Property="BorderBrush" Value="#CCFBF1" />
+                    <Setter Property="Background" Value="{DynamicResource Hero.ButtonBgHover}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Hero.ButtonBgHover}" />
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#99F6E4" />
+                    <Setter Property="Background" Value="{DynamicResource Hero.ButtonBgPressed}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Hero.ButtonBgPressed}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style x:Key="HeroGhostButton" TargetType="Button" BasedOn="{StaticResource ButtonBase}">
-            <Setter Property="Background" Value="#14FFFFFF" />
-            <Setter Property="Foreground" Value="{DynamicResource Hero.Text}" />
-            <Setter Property="BorderBrush" Value="#3B6470" />
+            <Setter Property="Background" Value="{DynamicResource Hero.GhostBg}" />
+            <Setter Property="Foreground" Value="{DynamicResource Hero.GhostFg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Hero.GhostBorder}" />
             <Setter Property="Height" Value="40" />
             <Setter Property="Padding" Value="16,0" />
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#24FFFFFF" />
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
         <Style x:Key="KpiLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="{StaticResource Font.Size.Small}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource App.TextMuted}" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -87,12 +82,13 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource SecondaryButton}"
                             Command="{Binding FullScanCommand}"
-                            AutomationProperties.Name="Open full scan options"
-                            ToolTip="Review full scan options before starting">
+                            ToolTip="{DynamicResource Strings.Dashboard.FullScanTip}"
+                            AutomationProperties.Name="{DynamicResource Strings.Dashboard.FullScanName}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE9D9;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                       FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center" />
-                            <TextBlock Text="Full scan" VerticalAlignment="Center" />
+                            <TextBlock Text="{StaticResource Icon.FullScan}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"
+                                       AutomationProperties.Name="" />
+                            <TextBlock Text="{DynamicResource Strings.Dashboard.FullScan}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -116,13 +112,13 @@
                                 CornerRadius="99"
                                 Padding="10,4"
                                 HorizontalAlignment="Left">
-                            <TextBlock Text="ON-DEMAND  &#x00B7;  ON-ACCESS  &#x00B7;  LOCAL ONLY"
-                                       FontSize="10"
+                            <TextBlock Text="{DynamicResource Strings.Dashboard.HeroBadge}"
+                                       FontSize="11"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource Hero.BadgeText}" />
                         </Border>
 
-                        <TextBlock Text="Your device, inspected on your terms."
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.HeroHeadline}"
                                    FontFamily="Segoe UI Variable Display, Segoe UI Semibold, Segoe UI"
                                    FontSize="27"
                                    FontWeight="SemiBold"
@@ -132,7 +128,7 @@
                                    HorizontalAlignment="Left"
                                    Margin="0,14,0,0" />
 
-                        <TextBlock Text="On-demand scans, transparent rules, and a recoverable encrypted vault. No cloud, no telemetry, no background driver."
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.HeroBody}"
                                    FontSize="13.5"
                                    Foreground="{DynamicResource Hero.TextMuted}"
                                    TextWrapping="Wrap"
@@ -141,19 +137,19 @@
                                    Margin="0,9,0,0" />
 
                         <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
-                            <Button Content="Quick scan"
+                            <Button Content="{DynamicResource Strings.Dashboard.QuickScan}"
                                     Style="{StaticResource HeroPrimaryButton}"
                                     Command="{Binding QuickScanCommand}"
                                     MinWidth="128"
-                                    AutomationProperties.Name="Start a quick scan" />
-                            <Button Content="Choose a folder"
+                                    AutomationProperties.Name="{DynamicResource Strings.Dashboard.QuickScanName}" />
+                            <Button Content="{DynamicResource Strings.Dashboard.ChooseFolder}"
                                     Style="{StaticResource HeroGhostButton}"
                                     Command="{Binding ChooseFolderCommand}"
                                     Margin="10,0,0,0"
-                                    AutomationProperties.Name="Choose a folder to scan" />
+                                    AutomationProperties.Name="{DynamicResource Strings.Dashboard.ChooseFolderName}" />
                         </StackPanel>
 
-                        <TextBlock Text="Files stay read-only until you confirm a quarantine."
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.HeroFootnote}"
                                    FontSize="11.5"
                                    Foreground="{DynamicResource Hero.TextMuted}"
                                    Margin="0,14,0,0" />
@@ -165,20 +161,22 @@
                           HorizontalAlignment="Right"
                           VerticalAlignment="Center"
                           IsHitTestVisible="False">
-                        <Ellipse Width="196" Height="196" Stroke="#332DD4BF" StrokeThickness="1" />
-                        <Ellipse Width="146" Height="146" Stroke="#552DD4BF" StrokeThickness="1" />
+                        <Ellipse Width="196" Height="196" Stroke="{DynamicResource Hero.Ring}" StrokeThickness="1" />
+                        <Ellipse Width="146" Height="146" Stroke="{DynamicResource Hero.Ring}" StrokeThickness="1" />
                         <Ellipse Width="98" Height="98" Fill="{DynamicResource Hero.Glow}" />
-                        <TextBlock Text="&#xEA18;"
+                        <TextBlock Text="{StaticResource Icon.Shield}"
                                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                    FontSize="52"
-                                   Foreground="#7DE6D7"
+                                   Foreground="{DynamicResource Hero.GlyphFg}"
                                    HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.Name="" />
                     </Grid>
                 </Grid>
             </Border>
 
-            <!-- Real-time protection -->
+            <!-- Real-time protection. The card reports what the monitor is really
+                 doing, including the parts it cannot cover. -->
             <Border Style="{StaticResource Card}" Margin="0,16,0,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -188,17 +186,20 @@
                     </Grid.ColumnDefinitions>
 
                     <Border Grid.Column="0" Style="{StaticResource IconTileSmall}">
-                        <TextBlock Text="&#xEA18;"
+                        <TextBlock Text="{StaticResource Icon.Shield}"
                                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                    FontSize="15"
                                    Foreground="{DynamicResource Accent.Text}"
                                    HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.Name="" />
                     </Border>
 
                     <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding RealtimeStatusTitle}" Style="{StaticResource CardTitle}" />
+                            <TextBlock Text="{Binding RealtimeStatusTitle}"
+                                       Style="{StaticResource CardTitle}"
+                                       controls:LiveRegion.IsEnabled="True" />
                             <Border Style="{StaticResource ChipBorder}" Margin="8,0,0,0" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding RealtimeBadgeText}" Style="{StaticResource ChipText}" />
                             </Border>
@@ -207,25 +208,58 @@
                                    Style="{StaticResource BodySecondary}"
                                    FontSize="12"
                                    Margin="0,4,0,0" />
+
+                        <!-- Coverage: how many of the configured folders are watched. -->
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="{Binding RealtimeWatchedText}" Style="{StaticResource Caption}" />
+                            <TextBlock Text="&#x00B7;" Style="{StaticResource Caption}" Margin="5,0" />
                             <TextBlock Text="{Binding RealtimeCheckedText}" Style="{StaticResource Caption}" />
                             <TextBlock Text="&#x00B7;" Style="{StaticResource Caption}" Margin="5,0" />
                             <TextBlock Text="{Binding RealtimeDetectionsText}" Style="{StaticResource Caption}" />
-                            <TextBlock Text="&#x00B7;" Style="{StaticResource Caption}" Margin="5,0" />
-                            <TextBlock Text="{Binding RealtimeLastDetectionText}"
-                                       Style="{StaticResource Caption}"
-                                       TextTrimming="CharacterEllipsis"
-                                       MaxWidth="520" />
                         </StackPanel>
+
+                        <!-- The counters that show where files are lost. -->
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                            <TextBlock Text="{Binding RealtimeQueueText}" Style="{StaticResource Caption}" />
+                            <TextBlock Text="&#x00B7;" Style="{StaticResource Caption}" Margin="5,0" />
+                            <TextBlock Text="{Binding RealtimeDroppedText}" Style="{StaticResource Caption}" />
+                            <TextBlock Text="&#x00B7;" Style="{StaticResource Caption}" Margin="5,0" />
+                            <TextBlock Text="{Binding RealtimeWatcherFailureText}" Style="{StaticResource Caption}" />
+                        </StackPanel>
+
+                        <!-- The last match, and the last error when there was one. -->
+                        <TextBlock Text="{Binding RealtimeLastDetectionText}"
+                                   Style="{StaticResource Caption}"
+                                   Margin="0,5,0,0"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="520"
+                                   ToolTip="{Binding RealtimeLastDetectionText}" />
+
+                        <Border Background="{DynamicResource Warning.Soft}"
+                                CornerRadius="8"
+                                Padding="10,7"
+                                Margin="0,8,0,0"
+                                Visibility="{Binding RealtimeDegraded, Converter={StaticResource BooleanToVisibility}}">
+                            <TextBlock Text="{DynamicResource Strings.Dashboard.RealtimeDegraded}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource App.TextPrimary}"
+                                       TextWrapping="Wrap" />
+                        </Border>
+
+                        <TextBlock Text="{Binding RealtimeLastErrorText}"
+                                   Style="{StaticResource Caption}"
+                                   Margin="0,6,0,0"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding HasRealtimeError, Converter={StaticResource BooleanToVisibility}}" />
                     </StackPanel>
 
                     <Button Grid.Column="2"
                             Style="{StaticResource SecondaryButton}"
                             Command="{Binding OpenRealtimeSettingsCommand}"
-                            Content="Settings"
+                            Content="{DynamicResource Strings.Dashboard.RealtimeSettings}"
                             VerticalAlignment="Center"
                             Margin="12,0,0,0"
-                            AutomationProperties.Name="Open real-time protection settings" />
+                            AutomationProperties.Name="{DynamicResource Strings.Dashboard.RealtimeSettingsName}" />
                 </Grid>
             </Border>
 
@@ -252,14 +286,36 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Style="{StaticResource IconTileSmall}">
-                                <TextBlock Text="{Binding LastScanGlyph}"
-                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                            FontSize="15"
                                            Foreground="{DynamicResource Accent.Text}"
                                            HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
+                                           VerticalAlignment="Center"
+                                           AutomationProperties.Name="">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="{StaticResource Icon.Scan}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Accent.Text}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding LastScanHasDetections}" Value="True">
+                                                    <Setter Property="Text" Value="{StaticResource Icon.Warning}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Warning.Text}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding LastScanHasErrors}" Value="True">
+                                                    <Setter Property="Text" Value="{StaticResource Icon.Warning}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Warning.Text}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding LastScanCancelled}" Value="True">
+                                                    <Setter Property="Text" Value="{StaticResource Icon.Dismiss}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource App.TextMuted}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </Border>
-                            <TextBlock Grid.Column="1" Text="Last scan" Style="{StaticResource KpiLabel}" Margin="10,0,0,0" />
+                            <TextBlock Grid.Column="1" Text="{DynamicResource Strings.Dashboard.LastScan}"
+                                       Style="{StaticResource KpiLabel}" Margin="10,0,0,0" />
                             <Border Grid.Column="2" Style="{StaticResource ChipBorder}">
                                 <TextBlock Text="{Binding LastScanStatus}" Style="{StaticResource ChipText}" />
                             </Border>
@@ -269,17 +325,19 @@
                             <TextBlock Text="{Binding LastScanTitle}"
                                        Style="{StaticResource CardTitle}"
                                        TextTrimming="CharacterEllipsis"
-                                       TextWrapping="NoWrap" />
+                                       TextWrapping="NoWrap"
+                                       ToolTip="{Binding LastScanTitle}" />
                             <TextBlock Text="{Binding LastScanWhen}" Style="{StaticResource Caption}" Margin="0,4,0,0" />
                             <TextBlock Text="{Binding LastScanMeta}" Style="{StaticResource BodySecondary}"
-                                       FontSize="12" Margin="0,7,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                            <Button Content="View history"
+                                       FontSize="12" Margin="0,7,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                       ToolTip="{Binding LastScanMeta}" />
+                            <Button Content="{DynamicResource Strings.Dashboard.ViewHistory}"
                                     Style="{StaticResource LinkButton}"
                                     Command="{Binding ViewHistoryCommand}"
                                     IsEnabled="{Binding HasHistory}"
                                     HorizontalAlignment="Left"
                                     Margin="0,10,0,0"
-                                    AutomationProperties.Name="View scan history" />
+                                    AutomationProperties.Name="{DynamicResource Strings.Dashboard.ViewHistoryName}" />
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -299,27 +357,29 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Style="{StaticResource IconTileSmall}">
-                                <TextBlock Text="&#xE72E;"
+                                <TextBlock Text="{StaticResource Icon.Trash}"
                                            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                            FontSize="14"
                                            Foreground="{DynamicResource Accent.Text}"
                                            HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
+                                           VerticalAlignment="Center"
+                                           AutomationProperties.Name="" />
                             </Border>
-                            <TextBlock Grid.Column="1" Text="Quarantine" Style="{StaticResource KpiLabel}" Margin="10,0,0,0" />
+                            <TextBlock Grid.Column="1" Text="{DynamicResource Strings.Dashboard.Quarantine}"
+                                       Style="{StaticResource KpiLabel}" Margin="10,0,0,0" />
                             <TextBlock Grid.Column="2" Text="{Binding QuarantineCountText}" Style="{StaticResource Label}" FontSize="15" />
                         </Grid>
 
                         <StackPanel Grid.Row="1" Margin="0,12,0,0">
                             <TextBlock Text="{Binding QuarantineCountText}" Style="{StaticResource StatNumber}" />
                             <TextBlock Text="{Binding QuarantineDetail}" Style="{StaticResource BodySecondary}"
-                                       FontSize="12" Margin="0,2,0,0" />
-                            <Button Content="Open quarantine"
+                                       FontSize="12" Margin="0,2,0,0" TextWrapping="Wrap" />
+                            <Button Content="{DynamicResource Strings.Dashboard.OpenQuarantine}"
                                     Style="{StaticResource LinkButton}"
                                     Command="{Binding OpenQuarantineCommand}"
                                     HorizontalAlignment="Left"
                                     Margin="0,10,0,0"
-                                    AutomationProperties.Name="Open the encrypted quarantine" />
+                                    AutomationProperties.Name="{DynamicResource Strings.Dashboard.OpenQuarantineName}" />
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -339,15 +399,17 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Style="{StaticResource IconTileSmall}">
-                                <TextBlock Text="&#xEA18;"
+                                <TextBlock Text="{StaticResource Icon.Shield}"
                                            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                            FontSize="14"
                                            Foreground="{DynamicResource Accent.Text}"
                                            HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
+                                           VerticalAlignment="Center"
+                                           AutomationProperties.Name="" />
                             </Border>
-                            <TextBlock Grid.Column="1" Text="Microsoft Defender" Style="{StaticResource KpiLabel}" Margin="10,0,0,0" />
-                            <Border Grid.Column="2">
+                            <TextBlock Grid.Column="1" Text="{DynamicResource Strings.Dashboard.MicrosoftDefender}"
+                                       Style="{StaticResource KpiLabel}" Margin="10,0,0,0" />
+                            <Border Grid.Column="1" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Top">
                                 <Border.Style>
                                     <Style TargetType="Border" BasedOn="{StaticResource ChipBorder}">
                                         <Style.Triggers>
@@ -370,35 +432,83 @@
                             <TextBlock Text="{Binding Defender.Title}"
                                        Style="{StaticResource CardTitle}"
                                        TextTrimming="CharacterEllipsis"
-                                       TextWrapping="NoWrap" />
+                                       TextWrapping="NoWrap"
+                                       ToolTip="{Binding Defender.Title}" />
                             <TextBlock Text="{Binding Defender.Signature}" Style="{StaticResource Caption}"
-                                       Margin="0,4,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                       Margin="0,4,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                       ToolTip="{Binding Defender.Signature}" />
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                <Button Content="Open Windows Security"
+                                <Button Content="{DynamicResource Strings.Dashboard.OpenWindowsSecurity}"
                                         Style="{StaticResource LinkButton}"
                                         Command="{Binding OpenWindowsSecurityCommand}"
-                                        AutomationProperties.Name="Open Windows Security" />
+                                        AutomationProperties.Name="{DynamicResource Strings.Dashboard.OpenWindowsSecurityName}" />
                                 <Button Style="{StaticResource IconButton}"
                                         Width="28" Height="28"
                                         Margin="8,0,0,0"
-                                        Content="&#xE72C;"
+                                        Content="{StaticResource Icon.Refresh}"
                                         Command="{Binding RefreshDefenderCommand}"
-                                        ToolTip="Refresh Defender status"
-                                        AutomationProperties.Name="Refresh Microsoft Defender status" />
+                                        ToolTip="{DynamicResource Strings.Dashboard.RefreshDefender}"
+                                        AutomationProperties.Name="{DynamicResource Strings.Dashboard.RefreshDefenderName}" />
                             </StackPanel>
                         </StackPanel>
                     </Grid>
                 </Border>
             </Grid>
 
-            <!-- Activity + rules -->
+            <!-- Activity chart and recent activity -->
             <Grid Margin="0,16,0,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="1*" />
+                    <ColumnDefinition Width="1*" />
                     <ColumnDefinition Width="1*" />
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,8,0" MinHeight="290">
+                <!-- Detections per scan -->
+                <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,8,0" MinHeight="230">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.ActivityTitle}" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.TrendSubtitle}"
+                                   Style="{StaticResource BodySecondary}"
+                                   FontSize="12"
+                                   Margin="0,4,0,0" />
+
+                        <charts:SparklineView Values="{Binding DetectionTrend}"
+                                               Height="120"
+                                               Margin="0,16,0,0"
+                                               Visibility="{Binding HasCharts, Converter={StaticResource BooleanToVisibility}}" />
+
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.NoChartYet}"
+                                   Style="{StaticResource BodySecondary}"
+                                   Margin="0,16,0,0"
+                                   Visibility="{Binding HasCharts, Converter={StaticResource InverseBooleanToVisibility}}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Last scan breakdown -->
+                <Border Grid.Column="1" Style="{StaticResource Card}" Margin="4,0,4,0" MinHeight="230">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.BreakdownTitle}" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.BreakdownSubtitle}"
+                                   Style="{StaticResource BodySecondary}"
+                                   FontSize="12"
+                                   Margin="0,4,0,0" />
+
+                        <charts:BarChartView Values="{Binding LastScanBars}"
+                                             Labels="{Binding LastScanBarLabels}"
+                                             BrushKeys="{Binding LastScanBarBrushKeys}"
+                                             Height="120"
+                                             Margin="0,16,0,0"
+                                             Visibility="{Binding HasCharts, Converter={StaticResource BooleanToVisibility}}" />
+
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.NoChartYet}"
+                                   Style="{StaticResource BodySecondary}"
+                                   Margin="0,16,0,0"
+                                   Visibility="{Binding HasCharts, Converter={StaticResource InverseBooleanToVisibility}}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Recent activity -->
+                <Border Grid.Column="2" Style="{StaticResource Card}" Margin="8,0,0,0" MinHeight="230">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -410,11 +520,11 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Recent activity" Style="{StaticResource SectionTitle}" />
-                            <Button Grid.Column="1" Content="View all"
+                            <TextBlock Text="{DynamicResource Strings.Dashboard.RecentActivity}" Style="{StaticResource SectionTitle}" />
+                            <Button Grid.Column="1" Content="{DynamicResource Strings.Dashboard.ViewAll}"
                                     Style="{StaticResource LinkButton}"
                                     Command="{Binding ViewHistoryCommand}"
-                                    AutomationProperties.Name="View all scan history" />
+                                    AutomationProperties.Name="{DynamicResource Strings.Dashboard.ViewAllName}" />
                         </Grid>
 
                         <StackPanel Grid.Row="1" Margin="0,14,0,0">
@@ -431,20 +541,26 @@
                                             <Border Grid.Column="0" Width="34" Height="34" CornerRadius="10"
                                                     Background="{DynamicResource App.SurfaceAlt}"
                                                     VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Glyph}"
-                                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                            FontSize="14"
-                                                           Foreground="{DynamicResource App.TextSecondary}"
                                                            HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center">
+                                                           VerticalAlignment="Center"
+                                                           AutomationProperties.Name="">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="{StaticResource Icon.Check}" />
                                                             <Setter Property="Foreground" Value="{DynamicResource Success.Text}" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding HasDetections}" Value="True">
+                                                                    <Setter Property="Text" Value="{StaticResource Icon.Warning}" />
+                                                                    <Setter Property="Foreground" Value="{DynamicResource Warning.Text}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding HasErrors}" Value="True">
+                                                                    <Setter Property="Text" Value="{StaticResource Icon.Warning}" />
                                                                     <Setter Property="Foreground" Value="{DynamicResource Warning.Text}" />
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding Cancelled}" Value="True">
+                                                                    <Setter Property="Text" Value="{StaticResource Icon.Dismiss}" />
                                                                     <Setter Property="Foreground" Value="{DynamicResource App.TextMuted}" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -455,14 +571,15 @@
 
                                             <StackPanel Grid.Column="1" Margin="12,0,12,0" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13"
-                                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                                           ToolTip="{Binding Title}" />
                                                 <TextBlock Text="{Binding WhenText}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
                                             </StackPanel>
 
                                             <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
                                                 <Border Style="{StaticResource ChipBorder}"
                                                         HorizontalAlignment="Right"
-                                                        Visibility="{Binding HasDetections, Converter={StaticResource BoolToVisibility}}">
+                                                        Visibility="{Binding HasDetections, Converter={StaticResource BooleanToVisibility}}">
                                                     <TextBlock Text="{Binding DetectionText}" Style="{StaticResource ChipText}" />
                                                 </Border>
                                                 <TextBlock Text="{Binding StatusText}" Style="{StaticResource Caption}"
@@ -473,43 +590,28 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <TextBlock Text="No scans yet. Your scan results will appear here, stored only on this device.">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource BodySecondary}">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasRecentActivity}" Value="True">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-
-                            <Button Content="Run a quick scan"
-                                    Command="{Binding QuickScanCommand}"
-                                    HorizontalAlignment="Left"
-                                    Margin="0,10,0,0"
-                                    AutomationProperties.Name="Run a quick scan">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource LinkButton}">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasRecentActivity}" Value="True">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
+                            <controls:EmptyState Glyph="{StaticResource Icon.List}"
+                                                 Title="{DynamicResource Strings.Dashboard.NoActivityTitle}"
+                                                 Message="{DynamicResource Strings.Dashboard.NoActivity}"
+                                                 ActionText="{DynamicResource Strings.Dashboard.RunQuickScan}"
+                                                 ActionCommand="{Binding QuickScanCommand}"
+                                                 Visibility="{Binding HasRecentActivity, Converter={StaticResource InverseBooleanToVisibility}}" />
                         </StackPanel>
                     </Grid>
                 </Border>
+            </Grid>
 
-                <Border Grid.Column="1" Style="{StaticResource Card}" Margin="8,0,0,0" MinHeight="290">
+            <!-- What Lumen checks + the rules card -->
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="1*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,8,0">
                     <StackPanel>
-                        <TextBlock Text="What Lumen checks" Style="{StaticResource SectionTitle}" />
-                        <TextBlock Text="Small, documented rules &#x2014; not a malware signature database."
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.ChecksTitle}" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.ChecksSubtitle}"
                                    Style="{StaticResource BodySecondary}"
                                    FontSize="12"
                                    Margin="0,4,0,0" />
@@ -520,13 +622,14 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Style="{StaticResource CheckBullet}">
-                                <TextBlock Text="&#xEA18;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                <TextBlock Text="{StaticResource Icon.Shield}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                            FontSize="13" Foreground="{DynamicResource Accent.Text}"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           AutomationProperties.Name="" />
                             </Border>
                             <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                                <TextBlock Text="EICAR test signature" Style="{StaticResource Label}" />
-                                <TextBlock Text="Verifies scanner plumbing with the standard harmless test file."
+                                <TextBlock Text="{DynamicResource Strings.Dashboard.CheckEicarTitle}" Style="{StaticResource Label}" />
+                                <TextBlock Text="{DynamicResource Strings.Dashboard.CheckEicarBody}"
                                            Style="{StaticResource Caption}" Margin="0,2,0,0" />
                             </StackPanel>
                         </Grid>
@@ -537,13 +640,14 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Style="{StaticResource CheckBullet}">
-                                <TextBlock Text="&#xE943;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                <TextBlock Text="{StaticResource Icon.ScriptRule}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                            FontSize="13" Foreground="{DynamicResource Warning.Text}"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           AutomationProperties.Name="" />
                             </Border>
                             <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                                <TextBlock Text="Script heuristics" Style="{StaticResource Label}" />
-                                <TextBlock Text="Looks for a few risky token combinations in readable scripts."
+                                <TextBlock Text="{DynamicResource Strings.Dashboard.CheckScriptTitle}" Style="{StaticResource Label}" />
+                                <TextBlock Text="{DynamicResource Strings.Dashboard.CheckScriptBody}"
                                            Style="{StaticResource Caption}" Margin="0,2,0,0" />
                             </StackPanel>
                         </Grid>
@@ -554,28 +658,47 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0" Style="{StaticResource CheckBullet}">
-                                <TextBlock Text="&#xE8A5;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                <TextBlock Text="{StaticResource Icon.FilenameRule}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                            FontSize="13" Foreground="{DynamicResource Info.Text}"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           AutomationProperties.Name="" />
                             </Border>
                             <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                                <TextBlock Text="Deceptive file names" Style="{StaticResource Label}" />
-                                <TextBlock Text="Flags double extensions and bidirectional override characters."
+                                <TextBlock Text="{DynamicResource Strings.Dashboard.CheckNameTitle}" Style="{StaticResource Label}" />
+                                <TextBlock Text="{DynamicResource Strings.Dashboard.CheckNameBody}"
                                            Style="{StaticResource Caption}" Margin="0,2,0,0" />
                             </StackPanel>
                         </Grid>
 
                         <Border Height="1" Background="{DynamicResource App.Border}" Margin="0,16,0,12" />
-                        <Button Content="Review detection rules"
+                        <Button Content="{DynamicResource Strings.Dashboard.ReviewRules}"
                                 Style="{StaticResource LinkButton}"
                                 Command="{Binding OpenSettingsCommand}"
                                 HorizontalAlignment="Left"
-                                AutomationProperties.Name="Review detection rules in Settings" />
+                                AutomationProperties.Name="{DynamicResource Strings.Dashboard.ReviewRulesName}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource Card}" Margin="8,0,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.ActivityTitle}" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="{DynamicResource Strings.Dashboard.ActivitySubtitle}"
+                                   Style="{StaticResource BodySecondary}"
+                                   FontSize="12"
+                                   Margin="0,4,0,0" />
+
+                        <TextBlock Text="{Binding Defender.Detail}"
+                                   Style="{StaticResource BodySecondary}"
+                                   Margin="0,14,0,0"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Defender.CheckedText}"
+                                   Style="{StaticResource Caption}"
+                                   Margin="0,6,0,0" />
                     </StackPanel>
                 </Border>
             </Grid>
 
-            <TextBlock Text="Microsoft Defender should remain your primary antivirus. Lumen's real-time protection is a user-mode folder watcher that runs only while the app is open."
+            <TextBlock Text="{DynamicResource Strings.Dashboard.Footer}"
                        Style="{StaticResource Caption}"
                        Margin="2,14,0,2" />
         </StackPanel>

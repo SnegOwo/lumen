@@ -1,21 +1,28 @@
 using System.Collections.ObjectModel;
 using Lumen.App.Infrastructure;
+using Lumen.App.Localization;
 using Lumen.App.Services;
 using Lumen.Core.Models;
 using Lumen.Core.Util;
 
 namespace Lumen.App.ViewModels;
 
-public sealed class DefenderStatusViewModel : ObservableObject
+/// <summary>
+/// The Microsoft Defender status, shown on the dashboard and in the settings.
+/// </summary>
+public sealed class DefenderStatusViewModel : ObservableObject, IDisposable
 {
     private readonly AppServices _services;
     private DefenderStatus? _status;
     private bool _isChecking;
+    private bool _disposed;
 
+    /// <summary>Creates the Defender status view model.</summary>
     public DefenderStatusViewModel(AppServices services)
     {
         _services = services;
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(force: true), () => !IsChecking);
+        Text.LanguageChanged += OnLanguageChanged;
     }
 
     public AsyncRelayCommand RefreshCommand { get; }
@@ -37,23 +44,23 @@ public sealed class DefenderStatusViewModel : ObservableObject
     public bool IsReady => _status is not null && !_isChecking;
 
     public string Title => IsChecking
-        ? "Checking Windows Security\u2026"
+        ? Text.DefenderChecking
         : IsUnavailable
-            ? "Status unavailable"
+            ? Text.DefenderUnavailable
             : IsProtected
-                ? "Real-time protection is on"
-                : "Real-time protection is off";
+                ? Text.DefenderOn
+                : Text.DefenderOff;
 
-    public string Detail => _status?.Message ??
-        "Lumen reads Microsoft Defender status but never changes it.";
+    public string Detail => _status?.Message ?? Text.DefenderDetailFallback;
 
     public string Signature => _status?.SignatureText ?? "Microsoft Defender";
     public string Updated => _status?.UpdatedText ?? string.Empty;
-    public string BadgeText => IsChecking ? "Checking" : IsUnavailable ? "Unknown" : IsProtected ? "On" : "Off";
+    public string BadgeText => IsChecking ? Text.DefenderBadgeChecking : IsUnavailable ? Text.DefenderBadgeUnknown : IsProtected ? Text.DefenderBadgeOn : Text.DefenderBadgeOff;
     public string CheckedText => _status is null
         ? string.Empty
-        : "Read-only status checked " + TimeFormatter.Relative(_status.CheckedUtc, _services.Clock.UtcNow);
+        : Text.DefenderChecked(TimeFormatter.Relative(_status.CheckedUtc, _services.Clock.UtcNow));
 
+    /// <summary>Refreshes the Defender status.</summary>
     public async Task RefreshAsync(bool force = false)
     {
         if (IsChecking) return;
@@ -66,14 +73,14 @@ public sealed class DefenderStatusViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             _status = DefenderStatus.Unavailable(
-                "The status check was cancelled.",
+                Text.DefenderCancelled,
                 _services.Clock.UtcNow);
         }
         catch (Exception ex)
         {
             _services.Log.Warn("Defender", "Defender status could not be read.", ex);
             _status = DefenderStatus.Unavailable(
-                "Windows Security status is unavailable on this system.",
+                Text.DefenderUnavailableBody,
                 _services.Clock.UtcNow);
         }
         finally
@@ -81,6 +88,16 @@ public sealed class DefenderStatusViewModel : ObservableObject
             IsChecking = false;
             RaiseStatusProperties();
         }
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e) => RaiseStatusProperties();
+
+    /// <summary>Unsubscribes from the language event.</summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Text.LanguageChanged -= OnLanguageChanged;
     }
 
     private void RaiseStatusProperties() => OnPropertyChanged(
@@ -97,8 +114,12 @@ public sealed class DefenderStatusViewModel : ObservableObject
         nameof(CheckedText));
 }
 
+/// <summary>
+/// One finding of a detection, as the detail pane shows it.
+/// </summary>
 public sealed class FindingViewModel
 {
+    /// <summary>Wraps a finding.</summary>
     public FindingViewModel(Finding finding)
     {
         Source = finding;
@@ -114,10 +135,14 @@ public sealed class FindingViewModel
     public Confidence Confidence => Source.Confidence;
 }
 
+/// <summary>
+/// One detection of a scan, as the results list shows it.
+/// </summary>
 public sealed class DetectionItemViewModel : ObservableObject
 {
     private bool _isSelected;
 
+    /// <summary>Wraps a detection.</summary>
     public DetectionItemViewModel(ScanDetection source)
     {
         Source = source;
@@ -131,7 +156,7 @@ public sealed class DetectionItemViewModel : ObservableObject
     public string FileName => Presentation.Sanitize(Source.FileName, 160);
     public string FilePath => Presentation.SanitizePath(Source.FilePath);
     public string Folder => Presentation.SanitizePath(Path.GetDirectoryName(Source.FilePath), 260);
-    public string Title => PrimaryFinding?.Title ?? "Potential issue";
+    public string Title => PrimaryFinding?.Title ?? Text.PotentialIssueTitle;
     public string Summary => PrimaryFinding?.Summary ?? string.Empty;
     public string Detail => PrimaryFinding?.Detail ?? string.Empty;
     public string Advice => PrimaryFinding?.Advice ?? string.Empty;
@@ -141,10 +166,10 @@ public sealed class DetectionItemViewModel : ObservableObject
     public string ConfidenceLabel => Presentation.ConfidenceText(Confidence);
     public string SizeText => SizeFormatter.Format(Source.SizeBytes);
     public string HashShort => string.IsNullOrWhiteSpace(Source.Sha256)
-        ? "SHA-256 unavailable"
-        : Source.Sha256[..16].ToUpperInvariant() + "\u2026";
+        ? Text.HashUnavailable
+        : Source.Sha256[..16].ToUpperInvariant() + "…";
     public string DetectedText => TimeFormatter.DateTime(Source.DetectedUtc);
-    public string AdditionalText => Findings.Count > 1 ? $"+{Findings.Count - 1} more finding(s)" : string.Empty;
+    public string AdditionalText => Findings.Count > 1 ? Text.AdditionalFindings(Findings.Count - 1) : string.Empty;
     public bool HasAdditional => Findings.Count > 1;
 
     public bool IsSelected
@@ -157,11 +182,28 @@ public sealed class DetectionItemViewModel : ObservableObject
         }
     }
 
-    public string SelectionName => "Select " + FileName;
+    /// <summary>The accessible name of the tick box that selects this detection.</summary>
+    public string SelectionName => Text.SelectFileName(FileName);
+
+    /// <summary>Re-raises the wording that depends on the interface language.</summary>
+    public void Refresh()
+    {
+        OnPropertyChanged(
+            nameof(Title),
+            nameof(CategoryLabel),
+            nameof(ConfidenceLabel),
+            nameof(HashShort),
+            nameof(AdditionalText),
+            nameof(SelectionName));
+    }
 }
 
-public sealed class ScanErrorItemViewModel
+/// <summary>
+/// One item that could not be inspected.
+/// </summary>
+public sealed class ScanErrorItemViewModel : ObservableObject
 {
+    /// <summary>Wraps a scan error.</summary>
     public ScanErrorItemViewModel(ScanError source)
     {
         Source = source;
@@ -172,10 +214,17 @@ public sealed class ScanErrorItemViewModel
     public string Message => Presentation.Sanitize(Source.Message, 300);
     public string KindLabel => Presentation.ErrorKind(Source.Kind);
     public string Technical => Presentation.Sanitize(Source.Technical, 80);
+
+    /// <summary>Re-raises the wording that depends on the interface language.</summary>
+    public void Refresh() => OnPropertyChanged(nameof(KindLabel));
 }
 
-public sealed class HistoryRowViewModel
+/// <summary>
+/// One scan in the history list.
+/// </summary>
+public sealed class HistoryRowViewModel : ObservableObject
 {
+    /// <summary>Wraps a history entry.</summary>
     public HistoryRowViewModel(ScanHistoryEntry source, DateTimeOffset now)
     {
         Source = source;
@@ -189,19 +238,35 @@ public sealed class HistoryRowViewModel
     public string WhenText => TimeFormatter.Relative(Source.StartedUtc, Now);
     public string DateText => TimeFormatter.DateTime(Source.StartedUtc);
     public string DurationText => TimeFormatter.Duration(Source.Duration);
-    public string MetaText => Presentation.Count(Source.FilesScanned, "file") + " \u00B7 " + DurationText;
-    public string StatusText => Source.StatusText;
+    public string MetaText => Text.Count(Source.FilesScanned, Text.File) + " · " + DurationText;
     public bool Cancelled => Source.Cancelled;
     public bool HasDetections => Source.DetectionCount > 0;
     public bool HasErrors => Source.ErrorCount > 0;
-    public string DetectionText => Presentation.Count(Source.DetectionCount, "finding");
-    public string ErrorText => Presentation.Count(Source.ErrorCount, "warning");
-    public string Glyph => Source.Cancelled ? "\uE711" : HasDetections ? "\uE7BA" : HasErrors ? "\uE7BA" : "\uE73E";
+
+    /// <summary>The status of the scan, in the current language.</summary>
+    public string StatusText => Cancelled
+        ? Text.HistoryStatusCancelled
+        : Source.ErrorCount > 0
+            ? Text.HistoryStatusErrors
+            : Text.HistoryStatusCompleted;
+
+    public string DetectionText => Text.Count(Source.DetectionCount, Text.Finding);
+    public string ErrorText => Text.Count(Source.ErrorCount, Text.Warning);
     public string ScopeLabel => Presentation.Scope(Source.Scope);
+
+    /// <summary>Re-raises the wording that depends on the interface language.</summary>
+    public void Refresh()
+    {
+        OnPropertyChanged(nameof(MetaText), nameof(StatusText), nameof(DetectionText), nameof(ErrorText), nameof(ScopeLabel));
+    }
 }
 
-public sealed class QuarantineItemViewModel
+/// <summary>
+/// One item of the encrypted quarantine vault.
+/// </summary>
+public sealed class QuarantineItemViewModel : ObservableObject
 {
+    /// <summary>Wraps a vault item.</summary>
     public QuarantineItemViewModel(QuarantineItem source, DateTimeOffset now)
     {
         Source = source;
@@ -217,17 +282,24 @@ public sealed class QuarantineItemViewModel
     public string DateText => TimeFormatter.DateTime(Source.QuarantinedUtc);
     public string RelativeText => TimeFormatter.Relative(Source.QuarantinedUtc, Now);
     public string SizeText => SizeFormatter.Format(Source.SizeBytes);
-    public string HashShort => Source.Sha256[..16].ToUpperInvariant() + "\u2026";
+    public string HashShort => Source.Sha256[..16].ToUpperInvariant() + "…";
     public string CategoryLabel => Presentation.Category(Source.Category);
     public string FindingTitle => Presentation.Sanitize(Source.FindingTitle, 180);
     public string FindingDetail => Presentation.Sanitize(Source.FindingDetail, 500);
     public string? Note => string.IsNullOrWhiteSpace(Source.Note) ? null : Presentation.Sanitize(Source.Note, 400);
     public bool HasNote => Note is not null;
     public bool OriginalExists => File.Exists(Source.OriginalPath);
+
+    /// <summary>Re-raises the wording that depends on the interface language.</summary>
+    public void Refresh() => OnPropertyChanged(nameof(CategoryLabel));
 }
 
+/// <summary>
+/// One rule of the detection catalogue.
+/// </summary>
 public sealed class DetectionRuleViewModel
 {
+    /// <summary>Wraps a rule summary.</summary>
     public DetectionRuleViewModel(DetectionRuleSummary source)
     {
         Source = source;

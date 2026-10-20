@@ -1,19 +1,58 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using Lumen.App.Dialogs;
 using Lumen.App.Infrastructure;
+using Lumen.App.Localization;
 using Lumen.App.Services;
 using Lumen.Core.Detection;
 using Lumen.Core.Models;
 
 namespace Lumen.App.ViewModels;
 
-public sealed class SettingsViewModel : ObservableObject, IPageViewModel
+/// <summary>
+/// A group of detection rules that share a category.
+/// </summary>
+public sealed class DetectionRuleGroupViewModel
+{
+    /// <summary>Creates a group of rules.</summary>
+    public DetectionRuleGroupViewModel(
+        FindingCategory category,
+        string label,
+        string hint,
+        IEnumerable<DetectionRuleViewModel> rules)
+    {
+        Category = category;
+        Label = label;
+        Hint = hint;
+        Rules = new ObservableCollection<DetectionRuleViewModel>(rules);
+    }
+
+    /// <summary>The category the group stands for.</summary>
+    public FindingCategory Category { get; }
+
+    /// <summary>The name of the category.</summary>
+    public string Label { get; }
+
+    /// <summary>What a rule in this category means.</summary>
+    public string Hint { get; }
+
+    /// <summary>The rules in this category.</summary>
+    public ObservableCollection<DetectionRuleViewModel> Rules { get; }
+}
+
+/// <summary>
+/// The settings page: appearance, language, scanning, real-time protection,
+/// remediation, alerts, the rule catalogue and the test tools.
+/// </summary>
+public sealed class SettingsViewModel : ObservableObject, IPageViewModel, IDisposable
 {
     private readonly AppServices _services;
     private readonly Action<string> _scanFolder;
     private bool _hasSaveError;
     private string _saveErrorText = string.Empty;
+    private bool _disposed;
 
+    /// <summary>Creates the settings view model.</summary>
     public SettingsViewModel(AppServices services, Action<string> scanFolder)
     {
         _services = services;
@@ -32,12 +71,25 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel
         ResetDefaultsCommand = new RelayCommand(ResetDefaults);
         RefreshDefenderCommand = Defender.RefreshCommand;
         DismissSaveErrorCommand = new RelayCommand(() => HasSaveError = false);
+        AddWatchedFolderCommand = new RelayCommand(AddWatchedFolder);
+        RemoveWatchedFolderCommand = new RelayCommand<string>(RemoveWatchedFolder);
+        AddExcludedFolderCommand = new RelayCommand(AddExcludedFolder);
+        RemoveExcludedFolderCommand = new RelayCommand<string>(RemoveExcludedFolder);
 
-        _services.SettingsChanged += (_, _) => RaiseSettings();
+        Text.LanguageChanged += OnLanguageChanged;
+        _services.SettingsChanged += OnServicesSettingsChanged;
+
+        RaiseSettings();
+        RebuildRuleGroups();
     }
 
     public DefenderStatusViewModel Defender { get; }
+
+    /// <summary>Every rule Lumen can report.</summary>
     public ObservableCollection<DetectionRuleViewModel> Rules { get; }
+
+    /// <summary>The same rules, grouped by category so that 51 entries stay readable.</summary>
+    public ObservableCollection<DetectionRuleGroupViewModel> RuleGroups { get; } = [];
 
     public RelayCommand OpenDataFolderCommand { get; }
     public RelayCommand OpenQuarantineFolderCommand { get; }
@@ -49,6 +101,19 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel
     public AsyncRelayCommand RefreshDefenderCommand { get; }
     public RelayCommand DismissSaveErrorCommand { get; }
 
+    /// <summary>Adds a folder to the real-time watch list.</summary>
+    public RelayCommand AddWatchedFolderCommand { get; }
+
+    /// <summary>Removes a folder from the real-time watch list.</summary>
+    public RelayCommand<string> RemoveWatchedFolderCommand { get; }
+
+    /// <summary>Adds a folder to the real-time exclusion list.</summary>
+    public RelayCommand AddExcludedFolderCommand { get; }
+
+    /// <summary>Removes a folder from the real-time exclusion list.</summary>
+    public RelayCommand<string> RemoveExcludedFolderCommand { get; }
+
+    /// <summary>The theme the user picked.</summary>
     public AppTheme Theme
     {
         get => _services.Settings.Theme;
@@ -56,6 +121,19 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel
         {
             if (value == Theme) return;
             Save(settings => settings with { Theme = value });
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>The interface language.</summary>
+    public AppLanguage Language
+    {
+        get => _services.Settings.Language;
+        set
+        {
+            if (value == Language) return;
+            Save(settings => settings with { Language = value });
+            Text.Set(value);
             OnPropertyChanged();
         }
     }
@@ -117,8 +195,71 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel
     }
 
     public string RealtimeStatusText => RealtimeProtectionEnabled
-        ? "Watching Desktop, Documents and Downloads while Lumen runs."
-        : "Paused. New and changed files are only checked during scans.";
+        ? Text.SettingsRealtimeOnBody
+        : Text.SettingsRealtimeOffBody;
+
+    /// <summary>
+    /// The master switch for the remediation engine. It is off by default: with it off,
+    /// Lumen can only detect and quarantine.
+    /// </summary>
+    public bool RemediationEnabled
+    {
+        get => _services.Settings.RemediationEnabled;
+        set
+        {
+            if (value == RemediationEnabled) return;
+            Save(settings => settings with { RemediationEnabled = value });
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Whether the full-screen detection alert is shown.</summary>
+    public bool DetectionAlertEnabled
+    {
+        get => _services.Settings.DetectionAlertEnabled;
+        set
+        {
+            if (value == DetectionAlertEnabled) return;
+            Save(settings => settings with { DetectionAlertEnabled = value });
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Whether the detection alert plays a sound.</summary>
+    public bool DetectionAlertSoundEnabled
+    {
+        get => _services.Settings.DetectionAlertSoundEnabled;
+        set
+        {
+            if (value == DetectionAlertSoundEnabled) return;
+            Save(settings => settings with { DetectionAlertSoundEnabled = value });
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Whether the detection alert draws the cat.</summary>
+    public bool DetectionAlertCatEnabled
+    {
+        get => _services.Settings.DetectionAlertCatEnabled;
+        set
+        {
+            if (value == DetectionAlertCatEnabled) return;
+            Save(settings => settings with { DetectionAlertCatEnabled = value });
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>The folders the real-time monitor watches, on top of the standard ones.</summary>
+    public ObservableCollection<string> WatchedFolders { get; } = [];
+
+    /// <summary>The folders the real-time monitor skips.</summary>
+    public ObservableCollection<string> ExcludedFolders { get; } = [];
+
+    /// <summary>True when no extra folder is watched.</summary>
+    public bool HasNoWatchedFolders => WatchedFolders.Count == 0;
+
+    /// <summary>True when no folder is excluded.</summary>
+    public bool HasNoExcludedFolders => ExcludedFolders.Count == 0;
 
     public double MaxInspectMegabytes
     {
@@ -136,22 +277,16 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel
 
     public string MaxInspectText => _services.Settings.MaxInspectMegabytes + " MB";
 
-    public string InspectLimitDetail =>
-        $"Lumen reads at most {_services.Settings.MaxInspectMegabytes} MB from the start of each file for content checks. " +
-        "File-name rules still examine the full name. Contents are never uploaded or written to the log.";
+    public string InspectLimitDetail => Text.SettingsInspectLimit(_services.Settings.MaxInspectMegabytes);
 
     public string DataPathText => _services.SanitizePath(_services.DataDirectory);
     public string QuarantinePathText => _services.SanitizePath(_services.Paths.QuarantineDirectory);
     public string LogPathText => _services.SanitizePath(_services.Paths.LogDirectory);
-    public string VersionText => "Version " + _services.Version;
-    public string RulesCountText => $"{Rules.Count:N0} documented rules";
-    public string SettingsNote => "Changes are saved automatically on this device.";
+    public string VersionText => Text.SettingsVersion(_services.Version);
+    public string RulesCountText => Text.SettingsRulesCount(Rules.Count);
 
-    public string AboutText =>
-        "Lumen is a transparent, local file inspector. It runs on-demand scans and, when real-time protection is on, " +
-        "re-checks new and changed files in your Desktop, Documents and Downloads folders while the app is open. " +
-        "It does not install a driver, monitor system folders, upload files, or change Microsoft Defender settings. " +
-        "Its rules are intentionally small and documented, so a clean result is not proof that a file is safe.";
+    /// <summary>The "about" paragraph.</summary>
+    public string AboutText => Text.SettingsAboutBody;
 
     public bool HasSaveError
     {
@@ -181,7 +316,7 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel
             return;
         }
 
-        SaveErrorText = result.Message ?? "The setting could not be saved.";
+        SaveErrorText = result.Message ?? Text.SettingsSaveFailed;
         HasSaveError = true;
     }
 
@@ -189,24 +324,101 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel
     {
         OnPropertyChanged(
             nameof(Theme),
+            nameof(Language),
             nameof(LoggingEnabled),
             nameof(MinimizeToTray),
             nameof(ShowTrayNotifications),
             nameof(RealtimeProtectionEnabled),
             nameof(RealtimeAutoQuarantine),
             nameof(RealtimeStatusText),
+            nameof(RemediationEnabled),
+            nameof(DetectionAlertEnabled),
+            nameof(DetectionAlertSoundEnabled),
+            nameof(DetectionAlertCatEnabled),
             nameof(MaxInspectMegabytes),
             nameof(MaxInspectText),
             nameof(InspectLimitDetail),
             nameof(DataPathText),
             nameof(QuarantinePathText),
-            nameof(LogPathText));
+            nameof(LogPathText),
+            nameof(VersionText),
+            nameof(RulesCountText),
+            nameof(AboutText));
+
+        RefreshFolderLists();
+    }
+
+    private void RefreshFolderLists()
+    {
+        SyncFolderList(WatchedFolders, _services.Settings.RealtimeWatchFolders);
+        SyncFolderList(ExcludedFolders, _services.Settings.RealtimeExcludedFolders);
+        OnPropertyChanged(nameof(HasNoWatchedFolders), nameof(HasNoExcludedFolders));
+    }
+
+    private static void SyncFolderList(ObservableCollection<string> target, IReadOnlyList<string> source)
+    {
+        target.Clear();
+        foreach (var folder in source) target.Add(folder);
+    }
+
+    private void AddWatchedFolder()
+    {
+        var folder = _services.Dialogs.PickFolder(
+            Text.SettingsPickWatchedTitle,
+            _services.UserProfile);
+        if (string.IsNullOrWhiteSpace(folder)) return;
+
+        var current = _services.Settings.RealtimeWatchFolders.ToList();
+        if (current.Contains(folder, StringComparer.OrdinalIgnoreCase)) return;
+
+        current.Add(folder);
+        Save(settings => settings with { RealtimeWatchFolders = current });
+        RefreshFolderLists();
+    }
+
+    private void RemoveWatchedFolder(string? folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder)) return;
+
+        var current = _services.Settings.RealtimeWatchFolders
+            .Where(candidate => !string.Equals(candidate, folder, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        Save(settings => settings with { RealtimeWatchFolders = current });
+        RefreshFolderLists();
+    }
+
+    private void AddExcludedFolder()
+    {
+        var folder = _services.Dialogs.PickFolder(
+            Text.SettingsPickExcludedTitle,
+            _services.UserProfile);
+        if (string.IsNullOrWhiteSpace(folder)) return;
+
+        var current = _services.Settings.RealtimeExcludedFolders.ToList();
+        if (current.Contains(folder, StringComparer.OrdinalIgnoreCase)) return;
+
+        current.Add(folder);
+        Save(settings => settings with { RealtimeExcludedFolders = current });
+        RefreshFolderLists();
+    }
+
+    private void RemoveExcludedFolder(string? folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder)) return;
+
+        var current = _services.Settings.RealtimeExcludedFolders
+            .Where(candidate => !string.Equals(candidate, folder, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        Save(settings => settings with { RealtimeExcludedFolders = current });
+        RefreshFolderLists();
     }
 
     private void OpenFolder(string path)
     {
         if (_services.OpenFolder(path)) return;
-        SaveErrorText = "That folder could not be opened.";
+        SaveErrorText = Text.SettingsFolderFailed;
         HasSaveError = true;
     }
 
@@ -214,31 +426,30 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel
     {
         if (_services.OpenWindowsSecurity()) return;
         _services.Dialogs.ShowMessage(
-            "Windows Security could not be opened",
-            "This system may not include the Windows Security app.",
+            Text.WindowsSecurityFailedTitle,
+            Text.WindowsSecurityFailedBodyShort,
             MessageSeverity.Info);
     }
 
     private void CreateSamples()
     {
         var folder = _services.Dialogs.PickFolder(
-            "Choose a folder for harmless test files",
+            Text.SamplesFolderTitle,
             Path.Combine(_services.UserProfile, "Documents"));
         if (string.IsNullOrWhiteSpace(folder)) return;
 
         var result = _services.TestFiles.CreateBenignSamples(folder);
         if (!result.Ok)
         {
-            _services.Dialogs.ShowMessage("Test files could not be created", result.Message, MessageSeverity.Warning);
+            _services.Dialogs.ShowMessage(Text.SamplesFailedTitle, result.Message, MessageSeverity.Warning);
             return;
         }
 
         var details = string.Join(Environment.NewLine, result.Created.Select(_services.SanitizePath));
         var scanNow = _services.Dialogs.Confirm(
-            "Harmless test files created",
-            "The folder now contains plain-text files plus one deceptive double-extension name for testing Lumen's file-name rule. " +
-            "None of them is executable or malicious. Do you want to open a folder scan for this location?",
-            "Scan test folder",
+            Text.SamplesCreatedTitle,
+            Text.SamplesCreatedBody,
+            Text.SamplesCreatedConfirm,
             details: details);
         if (scanNow) _scanFolder(folder);
     }
@@ -246,31 +457,28 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel
     private void CreateEicar()
     {
         var proceed = _services.Dialogs.Confirm(
-            "Create the EICAR test file?",
-            "EICAR is a harmless, industry-standard antivirus test string, not malware. " +
-            "Microsoft Defender may quarantine the file immediately and record an event. " +
-            "Only create it in a folder you control, preferably inside a test VM.",
-            "Create EICAR file",
+            Text.EicarCreateTitle,
+            Text.EicarCreateBody,
+            Text.EicarCreateConfirm,
             danger: true);
         if (!proceed) return;
 
         var folder = _services.Dialogs.PickFolder(
-            "Choose a folder for the EICAR test file",
+            Text.EicarFolderTitle,
             Path.Combine(_services.UserProfile, "Documents"));
         if (string.IsNullOrWhiteSpace(folder)) return;
 
         var result = _services.TestFiles.CreateEicarSample(folder);
         if (!result.Ok)
         {
-            _services.Dialogs.ShowMessage("EICAR test file could not be created", result.Message, MessageSeverity.Warning);
+            _services.Dialogs.ShowMessage(Text.EicarFailedTitle, result.Message, MessageSeverity.Warning);
             return;
         }
 
         var scanNow = _services.Dialogs.Confirm(
-            "EICAR test file created",
-            "If Microsoft Defender did not remove the file, a Lumen scan should report the EICAR test signature. " +
-            "This verifies scanner plumbing only and says nothing about real malware. Open a folder scan now?",
-            "Scan test folder",
+            Text.EicarCreatedTitle,
+            Text.EicarCreatedBody,
+            Text.SamplesCreatedConfirm,
             details: string.Join(Environment.NewLine, result.Created.Select(_services.SanitizePath)));
         if (scanNow) _scanFolder(folder);
     }
@@ -278,21 +486,73 @@ public sealed class SettingsViewModel : ObservableObject, IPageViewModel
     private void ResetDefaults()
     {
         var proceed = _services.Dialogs.Confirm(
-            "Restore default settings?",
-            "Theme, logging, tray behavior and content-inspection size will return to their defaults. " +
-            "Scan history and quarantined files are not affected.",
-            "Restore defaults");
+            Text.SettingsResetTitle,
+            Text.SettingsResetBody,
+            Text.SettingsResetConfirm);
         if (!proceed) return;
 
         var result = _services.UpdateSettings(_ => AppSettings.Default);
         if (!result.Ok)
         {
-            SaveErrorText = result.Message ?? "Settings could not be restored.";
+            SaveErrorText = result.Message ?? Text.SettingsSaveFailed;
             HasSaveError = true;
             return;
         }
 
+        Text.Set(_services.Language);
         RaiseSettings();
+        RebuildRuleGroups();
         HasSaveError = false;
+    }
+
+    /// <summary>
+    /// Rebuilds the category groups of the rule catalogue. With 51 rules a flat list is
+    /// hard to scan, so the rules are grouped by the kind of signal they use.
+    /// </summary>
+    private void RebuildRuleGroups()
+    {
+        RuleGroups.Clear();
+
+        foreach (var category in new[]
+                 {
+                     FindingCategory.TestSignature,
+                     FindingCategory.Signature,
+                     FindingCategory.Behavior,
+                     FindingCategory.Heuristic,
+                     FindingCategory.Reputation
+                 })
+        {
+            var rules = Rules.Where(rule => rule.Source.Category == category).ToArray();
+            if (rules.Length == 0) continue;
+
+            RuleGroups.Add(new DetectionRuleGroupViewModel(
+                category,
+                Presentation.Category(category),
+                Presentation.CategoryHint(category),
+                rules));
+        }
+    }
+
+    private void OnServicesSettingsChanged(object? sender, EventArgs e) => RaiseSettings();
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(
+            nameof(RulesCountText),
+            nameof(InspectLimitDetail),
+            nameof(VersionText),
+            nameof(AboutText));
+
+        RebuildRuleGroups();
+    }
+
+    /// <summary>Unsubscribes from the events this view model listens to.</summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Text.LanguageChanged -= OnLanguageChanged;
+        _services.SettingsChanged -= OnServicesSettingsChanged;
+        Defender.Dispose();
     }
 }

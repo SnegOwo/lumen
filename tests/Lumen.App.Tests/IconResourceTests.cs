@@ -55,6 +55,18 @@ public sealed class IconResourceTests
     public void Icons_everyIconKeyTheApplicationUses_isDeclared()
     {
         var declared = DeclaredIcons();
+
+        // Keys such as "Icon.Size.Small" are tokens, not glyphs: they live in
+        // Tokens.xaml. Only a reference that nobody declares anywhere is a
+        // problem.
+        var declaredElsewhere = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var file in SourceTree.XamlFiles)
+        {
+            if (string.Equals(file, IconsPath, StringComparison.OrdinalIgnoreCase)) continue;
+
+            foreach (var key in Xaml.DeclaredKeys(file)) declaredElsewhere.Add(key);
+        }
+
         var used = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var file in SourceTree.XamlFiles)
@@ -65,7 +77,10 @@ public sealed class IconResourceTests
             }
         }
 
-        var missing = used.Where(key => !declared.ContainsKey(key)).OrderBy(key => key, StringComparer.Ordinal).ToArray();
+        var missing = used
+            .Where(key => !declared.ContainsKey(key) && !declaredElsewhere.Contains(key))
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToArray();
 
         Assert.True(
             missing.Length == 0,

@@ -25,17 +25,31 @@
         <infra:NullToVisibilityConverter x:Key="NullToVisibility" />
     </Window.Resources>
 
-    <Border Background="{DynamicResource App.Surface}"
+    <Border x:Name="Surface"
+            Background="{DynamicResource App.Surface}"
             BorderBrush="{DynamicResource App.Border}"
             BorderThickness="1"
             CornerRadius="16"
-            Margin="26">
+            Margin="{StaticResource Space.Xxl}"
+            Opacity="0.85">
         <Border.Effect>
             <DropShadowEffect BlurRadius="34" ShadowDepth="6" Opacity="0.32"
                               Color="{DynamicResource App.ShadowColor}" />
         </Border.Effect>
+        <Border.Triggers>
+            <EventTrigger RoutedEvent="Loaded">
+                <BeginStoryboard>
+                    <Storyboard>
+                        <DoubleAnimation Storyboard.TargetName="Surface"
+                                         Storyboard.TargetProperty="Opacity"
+                                         To="1"
+                                         Duration="{infra:Motion Motion.Slow}" />
+                    </Storyboard>
+                </BeginStoryboard>
+            </EventTrigger>
+        </Border.Triggers>
 
-        <Grid Margin="26,24,26,24">
+        <Grid Margin="{StaticResource Space.Xl}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -50,11 +64,11 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Border x:Name="IconTile" Grid.Column="0" Width="42" Height="42" CornerRadius="12"
+                <Border x:Name="IconTile" Grid.Column="0" Width="{StaticResource Icon.Size.Hero}" Height="{StaticResource Icon.Size.Hero}" CornerRadius="12"
                         Background="{DynamicResource Info.Soft}" VerticalAlignment="Top">
-                    <TextBlock x:Name="IconGlyph" Text="&#xE946;"
+                    <TextBlock x:Name="IconGlyph" Text="{StaticResource Icon.Info}"
                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                               FontSize="20"
+                               FontSize="{StaticResource Icon.Size.Large}"
                                Foreground="{DynamicResource Info.Text}"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
@@ -71,7 +85,7 @@
                 <Button Grid.Column="2"
                         Style="{StaticResource IconButton}"
                         Width="32" Height="32"
-                        Content="&#xE711;"
+                        Content="{StaticResource Icon.Dismiss}"
                         AutomationProperties.Name="Close dialog"
                         ToolTip="Close"
                         Click="CloseButton_Click" />

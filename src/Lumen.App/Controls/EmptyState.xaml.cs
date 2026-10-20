@@ -7,7 +7,7 @@ namespace Lumen.App.Controls;
 public partial class EmptyState : UserControl
 {
     public static readonly DependencyProperty GlyphProperty = DependencyProperty.Register(
-        nameof(Glyph), typeof(string), typeof(EmptyState), new PropertyMetadata("\uE72E"));
+        nameof(Glyph), typeof(string), typeof(EmptyState), new PropertyMetadata((object?)null));
 
     public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(
         nameof(Title), typeof(string), typeof(EmptyState), new PropertyMetadata("Nothing here yet"));

@@ -12,14 +12,14 @@
     </UserControl.Resources>
 
     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="460">
-        <Border Width="68" Height="68" CornerRadius="20"
+        <Border Width="68" Height="68" CornerRadius="16"
                 Background="{DynamicResource App.SurfaceAlt}"
                 BorderBrush="{DynamicResource App.Border}"
                 BorderThickness="1"
                 HorizontalAlignment="Center">
-            <TextBlock Text="{Binding Glyph, ElementName=Root}"
+            <TextBlock Text="{Binding Glyph, ElementName=Root, TargetNullValue={StaticResource Icon.Trash}}"
                        FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                       FontSize="27"
+                       FontSize="{StaticResource Icon.Size.XLarge}"
                        Foreground="{DynamicResource Accent.Text}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
@@ -28,21 +28,21 @@
 
         <TextBlock Text="{Binding Title, ElementName=Root}"
                    Style="{StaticResource SectionTitle}"
-                   FontSize="18"
+                   FontSize="{StaticResource Font.Size.Display}"
                    TextAlignment="Center"
-                   Margin="0,18,0,0" />
+                   Margin="{StaticResource Space.Top.Lg}" />
 
         <TextBlock Text="{Binding Message, ElementName=Root}"
                    Style="{StaticResource BodySecondary}"
                    TextAlignment="Center"
                    LineHeight="20"
-                   Margin="0,8,0,0" />
+                   Margin="{StaticResource Space.Top.Sm}" />
 
         <Button Style="{StaticResource PrimaryButton}"
                 Content="{Binding ActionText, ElementName=Root}"
                 Command="{Binding ActionCommand, ElementName=Root}"
                 HorizontalAlignment="Center"
-                Margin="0,20,0,0"
+                Margin="{StaticResource Space.Top.Xl}"
                 MinWidth="140"
                 AutomationProperties.Name="{Binding ActionText, ElementName=Root}"
                 Visibility="{Binding ActionText, ElementName=Root, Converter={StaticResource EmptyStringToVisibility}}" />

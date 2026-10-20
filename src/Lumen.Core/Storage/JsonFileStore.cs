@@ -38,7 +38,15 @@ public sealed class JsonFileStore<T> where T : class, new()
             }
 
             var bytes = File.ReadAllBytes(_path);
-            var value = JsonSerializer.Deserialize<T>(bytes, JsonDefaults.Options);
+
+            // A UTF-8 byte order mark is legal in a text file and editors such as
+            // Notepad add one. System.Text.Json rejects it, which would make Lumen
+            // throw away a perfectly good settings file just because someone opened it
+            // in a text editor and saved it.
+            var offset = 0;
+            if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) offset = 3;
+
+            var value = JsonSerializer.Deserialize<T>(bytes.AsSpan(offset), JsonDefaults.Options);
             if (value is null)
             {
                 warning = PreserveCorrupt("The data file contained no usable data.", null);

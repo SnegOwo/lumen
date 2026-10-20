@@ -19,6 +19,8 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <!-- The WPF target framework does not import System.IO implicitly. -->
+    <Using Include="System.IO" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,8 +29,8 @@
 
   <ItemGroup>
     <!-- The theme scans read the real XAML files from the source tree. The build
-         output can live outside the repository (--artifacts-path), so the root
-         is recorded here as a fallback for the runtime walk-up. -->
+         output can live outside the repository, so the root is recorded here as
+         a fallback for the runtime walk-up. -->
     <AssemblyMetadata Include="LumenRepositoryRoot"
                       Value="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..'))" />
   </ItemGroup>

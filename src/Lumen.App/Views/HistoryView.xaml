@@ -4,17 +4,11 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:Lumen.App.Controls"
-             xmlns:infra="clr-namespace:Lumen.App.Infrastructure"
              xmlns:vm="clr-namespace:Lumen.App.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:HistoryViewModel}"
              d:DesignWidth="1100"
              d:DesignHeight="820">
-
-    <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
-        <infra:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
-    </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
@@ -29,26 +23,26 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="History" Style="{StaticResource PageTitle}" />
+                    <TextBlock Text="{DynamicResource Strings.History.Title}" Style="{StaticResource PageTitle}" />
                     <TextBlock Text="{Binding SummaryText}" Style="{StaticResource PageSubtitle}" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource DangerOutlineButton}"
                             Command="{Binding ClearHistoryCommand}"
-                            Content="Clear history"
-                            Visibility="{Binding HasEntries, Converter={StaticResource BoolToVisibility}}"
-                            AutomationProperties.Name="Clear local scan history" />
+                            Content="{DynamicResource Strings.History.Clear}"
+                            Visibility="{Binding HasEntries, Converter={StaticResource BooleanToVisibility}}"
+                            AutomationProperties.Name="{DynamicResource Strings.History.ClearName}" />
                     <Button Style="{StaticResource IconButton}"
                             Command="{Binding RefreshCommand}"
-                            Content="&#xE72C;"
+                            Content="{StaticResource Icon.Refresh}"
                             Margin="8,0,0,0"
-                            ToolTip="Refresh scan history"
-                            AutomationProperties.Name="Refresh scan history" />
+                            ToolTip="{DynamicResource Strings.History.Refresh}"
+                            AutomationProperties.Name="{DynamicResource Strings.History.RefreshName}" />
                 </StackPanel>
             </Grid>
 
-            <controls:Banner Title="Some history data could not be read"
+            <controls:Banner Title="{DynamicResource Strings.History.ReadWarningTitle}"
                              Message="{Binding LoadWarning}"
                              Severity="Warning"
                              Margin="0,0,0,14"
@@ -60,23 +54,29 @@
                              ShowClose="True"
                              CloseCommand="{Binding DismissBannerCommand}"
                              Margin="0,0,0,14"
-                             Visibility="{Binding HasBanner, Converter={StaticResource BoolToVisibility}}" />
+                             Visibility="{Binding HasBanner, Converter={StaticResource BooleanToVisibility}}" />
+
+            <!-- The banner is announced to a screen reader. -->
+            <Grid Height="0">
+                <TextBlock Text="{Binding BannerAnnouncement}"
+                           controls:LiveRegion.IsEnabled="True" />
+            </Grid>
 
             <!-- Empty -->
             <Border Style="{StaticResource Card}"
                     MinHeight="390"
-                    Visibility="{Binding HasEntries, Converter={StaticResource InverseBoolToVisibility}}">
-                <controls:EmptyState Glyph="&#xE81C;"
-                                     Title="No scan history yet"
-                                     Message="Completed scans are recorded locally with their scope, counts and skipped items. File contents and paths are never written to the log."
-                                     ActionText="Run a quick scan"
+                    Visibility="{Binding HasEntries, Converter={StaticResource InverseBooleanToVisibility}}">
+                <controls:EmptyState Glyph="{StaticResource Icon.List}"
+                                     Title="{DynamicResource Strings.History.EmptyTitle}"
+                                     Message="{DynamicResource Strings.History.EmptyMessage}"
+                                     ActionText="{DynamicResource Strings.History.RunQuickScan}"
                                      ActionCommand="{Binding StartQuickScanCommand}" />
             </Border>
 
             <!-- History -->
-            <Grid Visibility="{Binding HasEntries, Converter={StaticResource BoolToVisibility}}">
+            <Grid Visibility="{Binding HasEntries, Converter={StaticResource BooleanToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="400" />
+                    <ColumnDefinition Width="1*" MinWidth="260" MaxWidth="400" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
@@ -92,9 +92,8 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Scans" Style="{StaticResource Label}" />
-                            <TextBlock Grid.Column="1" Text="{Binding Rows.Count, StringFormat={}{0:N0} stored}"
-                                       Style="{StaticResource Caption}" />
+                            <TextBlock Text="{DynamicResource Strings.History.Scans}" Style="{StaticResource Label}" />
+                            <TextBlock Grid.Column="1" Text="{Binding StoredCountText}" Style="{StaticResource Caption}" />
                         </Grid>
 
                         <ListBox Grid.Row="1"
@@ -102,7 +101,7 @@
                                  ItemsSource="{Binding Rows}"
                                  SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
                                  MaxHeight="550"
-                                 AutomationProperties.Name="Scan history entries">
+                                 AutomationProperties.Name="{DynamicResource Strings.History.EntriesName}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Grid>
@@ -115,22 +114,26 @@
                                         <Border Grid.Column="0" Width="34" Height="34" CornerRadius="10"
                                                 Background="{DynamicResource App.SurfaceAlt}"
                                                 VerticalAlignment="Top">
-                                            <TextBlock Text="{Binding Glyph}"
-                                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                            <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                        FontSize="14"
                                                        HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center">
+                                                       VerticalAlignment="Center"
+                                                       AutomationProperties.Name="">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="{StaticResource Icon.Check}" />
                                                         <Setter Property="Foreground" Value="{DynamicResource Success.Text}" />
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding HasDetections}" Value="True">
+                                                                <Setter Property="Text" Value="{StaticResource Icon.Warning}" />
                                                                 <Setter Property="Foreground" Value="{DynamicResource Warning.Text}" />
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding HasErrors}" Value="True">
+                                                                <Setter Property="Text" Value="{StaticResource Icon.Warning}" />
                                                                 <Setter Property="Foreground" Value="{DynamicResource Warning.Text}" />
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding Cancelled}" Value="True">
+                                                                <Setter Property="Text" Value="{StaticResource Icon.Dismiss}" />
                                                                 <Setter Property="Foreground" Value="{DynamicResource App.TextMuted}" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
@@ -144,7 +147,8 @@
                                                        FontWeight="SemiBold"
                                                        FontSize="12.5"
                                                        TextTrimming="CharacterEllipsis"
-                                                       TextWrapping="NoWrap" />
+                                                       TextWrapping="NoWrap"
+                                                       ToolTip="{Binding Title}" />
                                             <TextBlock Text="{Binding DateText}"
                                                        Style="{StaticResource Caption}"
                                                        FontSize="11"
@@ -152,20 +156,20 @@
                                             <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                                                 <TextBlock Text="{Binding MetaText}"
                                                            Style="{StaticResource Caption}"
-                                                           FontSize="10.5" />
+                                                           FontSize="11" />
                                                 <TextBlock Text="&#x00B7;"
                                                            Style="{StaticResource Caption}"
-                                                           FontSize="10.5"
+                                                           FontSize="11"
                                                            Margin="6,0" />
                                                 <TextBlock Text="{Binding ScopeLabel}"
                                                            Style="{StaticResource Caption}"
-                                                           FontSize="10.5" />
+                                                           FontSize="11" />
                                             </StackPanel>
                                         </StackPanel>
 
                                         <Border Grid.Column="2" Style="{StaticResource ChipBorder}"
                                                 VerticalAlignment="Top" Margin="0,1,0,0">
-                                            <TextBlock Text="{Binding StatusText}" Style="{StaticResource ChipText}" FontSize="10" />
+                                            <TextBlock Text="{Binding StatusText}" Style="{StaticResource ChipText}" FontSize="11" />
                                         </Border>
                                     </Grid>
                                 </DataTemplate>
@@ -179,7 +183,7 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"
                                       MaxHeight="560"
-                                      Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
+                                      Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibility}}">
                             <StackPanel Margin="0,0,8,0">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -213,22 +217,22 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0">
-                                            <TextBlock Text="Inspected" Style="{StaticResource Caption}" FontSize="11" />
+                                            <TextBlock Text="{DynamicResource Strings.History.Inspected}" Style="{StaticResource Caption}" FontSize="11" />
                                             <TextBlock Text="{Binding SelectedRow.Source.FilesScanned, StringFormat={}{0:N0}}"
                                                        Style="{StaticResource Label}" FontSize="19" Margin="0,2,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1">
-                                            <TextBlock Text="Findings" Style="{StaticResource Caption}" FontSize="11" />
+                                            <TextBlock Text="{DynamicResource Strings.History.Findings}" Style="{StaticResource Caption}" FontSize="11" />
                                             <TextBlock Text="{Binding SelectedRow.Source.DetectionCount, StringFormat={}{0:N0}}"
                                                        Style="{StaticResource Label}" FontSize="19" Margin="0,2,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
-                                            <TextBlock Text="Warnings" Style="{StaticResource Caption}" FontSize="11" />
+                                            <TextBlock Text="{DynamicResource Strings.History.Warnings}" Style="{StaticResource Caption}" FontSize="11" />
                                             <TextBlock Text="{Binding SelectedRow.Source.ErrorCount, StringFormat={}{0:N0}}"
                                                        Style="{StaticResource Label}" FontSize="19" Margin="0,2,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="3">
-                                            <TextBlock Text="Duration" Style="{StaticResource Caption}" FontSize="11" />
+                                            <TextBlock Text="{DynamicResource Strings.History.Duration}" Style="{StaticResource Caption}" FontSize="11" />
                                             <TextBlock Text="{Binding DetailDuration}"
                                                        Style="{StaticResource Label}" FontSize="19" Margin="0,2,0,0" />
                                         </StackPanel>
@@ -240,11 +244,13 @@
                                            FontSize="12.5"
                                            Margin="0,10,0,0" />
 
-                                <TextBlock Text="Locations" Style="{StaticResource Label}" FontSize="12" Margin="0,16,0,0" />
+                                <TextBlock Text="{DynamicResource Strings.History.Locations}" Style="{StaticResource Label}" FontSize="12" Margin="0,16,0,0" />
                                 <Border Style="{StaticResource InsetCard}" Margin="0,6,0,0" Padding="12,10">
                                     <TextBlock Text="{Binding DetailRoots}"
                                                Style="{StaticResource Mono}"
-                                               FontSize="11.5" />
+                                               FontSize="11.5"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding DetailRoots}" />
                                 </Border>
 
                                 <TextBlock Text="{Binding DetailErrorsCaption}"
@@ -256,8 +262,8 @@
                                          ItemsSource="{Binding DetailErrors}"
                                          MaxHeight="180"
                                          Margin="0,6,0,0"
-                                         Visibility="{Binding HasDetailErrors, Converter={StaticResource BoolToVisibility}}"
-                                         AutomationProperties.Name="Skipped items from this scan">
+                                         Visibility="{Binding HasDetailErrors, Converter={StaticResource BooleanToVisibility}}"
+                                         AutomationProperties.Name="{DynamicResource Strings.History.SkippedName}">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <Grid>
@@ -266,14 +272,15 @@
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
                                                 <Border Grid.Column="0" Style="{StaticResource ChipBorder}" VerticalAlignment="Top" Margin="0,1,0,0">
-                                                    <TextBlock Text="{Binding KindLabel}" Style="{StaticResource ChipText}" FontSize="10" />
+                                                    <TextBlock Text="{Binding KindLabel}" Style="{StaticResource ChipText}" FontSize="11" />
                                                 </Border>
                                                 <StackPanel Grid.Column="1" Margin="9,0,0,0">
                                                     <TextBlock Text="{Binding Path}"
                                                                Style="{StaticResource Mono}"
                                                                FontSize="11"
                                                                TextTrimming="CharacterEllipsis"
-                                                               TextWrapping="NoWrap" />
+                                                               TextWrapping="NoWrap"
+                                                               ToolTip="{Binding Path}" />
                                                     <TextBlock Text="{Binding Message}"
                                                                Style="{StaticResource Caption}"
                                                                FontSize="11"
@@ -284,43 +291,34 @@
                                     </ListBox.ItemTemplate>
                                 </ListBox>
 
-                                <TextBlock Text="No skipped items were recorded for this scan."
+                                <TextBlock Text="{DynamicResource Strings.History.NoSkipped}"
                                            Style="{StaticResource Caption}"
                                            Margin="0,6,0,0"
-                                           Visibility="{Binding HasDetailErrors, Converter={StaticResource InverseBoolToVisibility}}" />
+                                           Visibility="{Binding HasDetailErrors, Converter={StaticResource InverseBooleanToVisibility}}" />
 
                                 <Border Height="1" Background="{DynamicResource App.Border}" Margin="0,16,0,12" />
 
-                                <Button Content="Run another quick scan"
+                                <Button Content="{DynamicResource Strings.History.RunAnother}"
                                         Style="{StaticResource LinkButton}"
                                         Command="{Binding StartQuickScanCommand}"
                                         HorizontalAlignment="Left"
-                                        AutomationProperties.Name="Run another quick scan" />
+                                        AutomationProperties.Name="{DynamicResource Strings.History.RunAnotherName}" />
 
-                                <TextBlock Text="History stores scan metadata only: scope, counts, paths and skipped items. It never stores file contents."
+                                <TextBlock Text="{DynamicResource Strings.History.Footer}"
                                            Style="{StaticResource Caption}"
                                            Margin="0,12,0,0" />
                             </StackPanel>
                         </ScrollViewer>
 
-                        <StackPanel HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Visibility="{Binding HasSelection, Converter={StaticResource InverseBoolToVisibility}}">
-                            <TextBlock Text="&#xE81C;"
-                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                       FontSize="32"
-                                       Foreground="{DynamicResource App.TextMuted}"
-                                       HorizontalAlignment="Center" />
-                            <TextBlock Text="Select a scan to review it"
-                                       Style="{StaticResource BodySecondary}"
-                                       Margin="0,10,0,0"
-                                       TextAlignment="Center" />
-                        </StackPanel>
+                        <controls:EmptyState Glyph="{StaticResource Icon.List}"
+                                             Title="{DynamicResource Strings.History.SelectScanTitle}"
+                                             Message="{DynamicResource Strings.History.SelectScan}"
+                                             Visibility="{Binding HasSelection, Converter={StaticResource InverseBooleanToVisibility}}" />
                     </Grid>
                 </Border>
             </Grid>
 
-            <TextBlock Text="Scan history is stored in this Windows account's app data. Clearing it does not affect quarantined files."
+            <TextBlock Text="{DynamicResource Strings.History.Footer}"
                        Style="{StaticResource Caption}"
                        Margin="2,14,0,2" />
         </StackPanel>

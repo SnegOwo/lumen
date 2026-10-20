@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
@@ -33,12 +33,17 @@
     <sys:String x:Key="Strings.Dashboard.FullScan">Full scan</sys:String>
     <sys:String x:Key="Strings.Dashboard.FullScanTip">Review full scan options before starting</sys:String>
     <sys:String x:Key="Strings.Dashboard.FullScanName">Open full scan options</sys:String>
+    <sys:String x:Key="Strings.Dashboard.HeroBadge">ON-DEMAND  ·  ON-ACCESS  ·  LOCAL ONLY</sys:String>
+    <sys:String x:Key="Strings.Dashboard.HeroHeadline">Your device, inspected on your terms.</sys:String>
+    <sys:String x:Key="Strings.Dashboard.HeroBody">On-demand scans, transparent rules, and a recoverable encrypted vault. No cloud, no telemetry, no background driver.</sys:String>
+    <sys:String x:Key="Strings.Dashboard.HeroFootnote">Files stay read-only until you confirm a quarantine.</sys:String>
     <sys:String x:Key="Strings.Dashboard.QuickScan">Quick scan</sys:String>
     <sys:String x:Key="Strings.Dashboard.QuickScanName">Start a quick scan</sys:String>
     <sys:String x:Key="Strings.Dashboard.ChooseFolder">Choose a folder</sys:String>
     <sys:String x:Key="Strings.Dashboard.ChooseFolderName">Choose a folder to scan</sys:String>
     <sys:String x:Key="Strings.Dashboard.RealtimeSettings">Settings</sys:String>
     <sys:String x:Key="Strings.Dashboard.RealtimeSettingsName">Open real-time protection settings</sys:String>
+    <sys:String x:Key="Strings.Dashboard.RealtimeDegraded">Protection is degraded: part of the configured folders is not being watched.</sys:String>
     <sys:String x:Key="Strings.Dashboard.LastScan">Last scan</sys:String>
     <sys:String x:Key="Strings.Dashboard.Quarantine">Quarantine</sys:String>
     <sys:String x:Key="Strings.Dashboard.MicrosoftDefender">Microsoft Defender</sys:String>
@@ -50,12 +55,18 @@
     <sys:String x:Key="Strings.Dashboard.OpenWindowsSecurityName">Open Windows Security</sys:String>
     <sys:String x:Key="Strings.Dashboard.RefreshDefender">Refresh Defender status</sys:String>
     <sys:String x:Key="Strings.Dashboard.RefreshDefenderName">Refresh Microsoft Defender status</sys:String>
+    <sys:String x:Key="Strings.Dashboard.ActivityTitle">Activity</sys:String>
+    <sys:String x:Key="Strings.Dashboard.ActivitySubtitle">What Lumen saw on this device, and when it last checked.</sys:String>
+    <sys:String x:Key="Strings.Dashboard.TrendSubtitle">Detections of the most recent scans, oldest first.</sys:String>
+    <sys:String x:Key="Strings.Dashboard.BreakdownTitle">Last scan</sys:String>
+    <sys:String x:Key="Strings.Dashboard.BreakdownSubtitle">Inspected, skipped and warned-about files of the last scan.</sys:String>
+    <sys:String x:Key="Strings.Dashboard.NoChartYet">No scan has been recorded on this device yet.</sys:String>
     <sys:String x:Key="Strings.Dashboard.RecentActivity">Recent activity</sys:String>
     <sys:String x:Key="Strings.Dashboard.ViewAll">View all</sys:String>
     <sys:String x:Key="Strings.Dashboard.ViewAllName">View all scan history</sys:String>
+    <sys:String x:Key="Strings.Dashboard.NoActivityTitle">No scans yet</sys:String>
     <sys:String x:Key="Strings.Dashboard.NoActivity">No scans yet. Your scan results will appear here, stored only on this device.</sys:String>
     <sys:String x:Key="Strings.Dashboard.RunQuickScan">Run a quick scan</sys:String>
-    <sys:String x:Key="Strings.Dashboard.RunQuickScanName">Run a quick scan</sys:String>
     <sys:String x:Key="Strings.Dashboard.ChecksTitle">What Lumen checks</sys:String>
     <sys:String x:Key="Strings.Dashboard.ChecksSubtitle">Small, documented rules — not a malware signature database.</sys:String>
     <sys:String x:Key="Strings.Dashboard.CheckEicarTitle">EICAR test signature</sys:String>
@@ -77,18 +88,6 @@
     <sys:String x:Key="Strings.Scan.ScopeTitle">Choose a scope</sys:String>
     <sys:String x:Key="Strings.Scan.ScopeSubtitle">Quick covers the folders most people care about. Full profile is broader but still skips system and app-data locations.</sys:String>
     <sys:String x:Key="Strings.Scan.ReadOnly">READ-ONLY</sys:String>
-    <sys:String x:Key="Strings.Scan.ScopeQuickTitle">Quick</sys:String>
-    <sys:String x:Key="Strings.Scan.ScopeQuickBody">Desktop, Documents, Downloads</sys:String>
-    <sys:String x:Key="Strings.Scan.ScopeQuickName">Quick scan: Desktop, Documents and Downloads</sys:String>
-    <sys:String x:Key="Strings.Scan.ScopeFullTitle">Full profile</sys:String>
-    <sys:String x:Key="Strings.Scan.ScopeFullBody">Your user profile, minus app data</sys:String>
-    <sys:String x:Key="Strings.Scan.ScopeFullName">Full profile scan of your user profile</sys:String>
-    <sys:String x:Key="Strings.Scan.ScopeFolderTitle">Folder</sys:String>
-    <sys:String x:Key="Strings.Scan.ScopeFolderBody">One folder you choose</sys:String>
-    <sys:String x:Key="Strings.Scan.ScopeFolderName">Folder scan of a folder you choose</sys:String>
-    <sys:String x:Key="Strings.Scan.ScopeFileTitle">Single file</sys:String>
-    <sys:String x:Key="Strings.Scan.ScopeFileBody">One file you choose</sys:String>
-    <sys:String x:Key="Strings.Scan.ScopeFileName">Single file scan</sys:String>
     <sys:String x:Key="Strings.Scan.Location">Location</sys:String>
     <sys:String x:Key="Strings.Scan.Choose">Choose…</sys:String>
     <sys:String x:Key="Strings.Scan.ChooseName">Choose a folder or file to scan</sys:String>
@@ -110,6 +109,7 @@
     <sys:String x:Key="Strings.Scan.CopyPathName">Copy the selected file path</sys:String>
     <sys:String x:Key="Strings.Scan.ShowInExplorer">Show in Explorer</sys:String>
     <sys:String x:Key="Strings.Scan.ShowInExplorerName">Show the selected file in Explorer</sys:String>
+    <sys:String x:Key="Strings.Scan.SelectFindingTitle">Nothing selected</sys:String>
     <sys:String x:Key="Strings.Scan.SelectFinding">Select a finding to review its details.</sys:String>
     <sys:String x:Key="Strings.Scan.NoMatchesTitle">No matches found</sys:String>
     <sys:String x:Key="Strings.Scan.NoMatchesMessage">Lumen's limited rules did not match any inspected file. That does not prove the files are safe. Keep Microsoft Defender enabled and review skipped items below.</sys:String>
@@ -117,6 +117,14 @@
     <sys:String x:Key="Strings.Scan.Footer">Lumen reads a limited prefix of each file for content checks. It never uploads file contents and never bypasses Windows permissions.</sys:String>
     <sys:String x:Key="Strings.Scan.Clean">Clean</sys:String>
     <sys:String x:Key="Strings.Scan.CleanName">Clean the selected file</sys:String>
+    <sys:String x:Key="Strings.Scan.StartScanName">Start the selected scan</sys:String>
+    <sys:String x:Key="Strings.Scan.CancelScanName">Cancel the running scan</sys:String>
+    <sys:String x:Key="Strings.Scan.ProgressName">Scan in progress</sys:String>
+    <sys:String x:Key="Strings.Scan.QuarantineProgressTitle">Quarantining files</sys:String>
+    <sys:String x:Key="Strings.Scan.QuarantineProgressName">Quarantine in progress</sys:String>
+    <sys:String x:Key="Strings.Scan.QuarantineName">Quarantine the selected files</sys:String>
+    <sys:String x:Key="Strings.Scan.DetectionsName">Detected files</sys:String>
+    <sys:String x:Key="Strings.Scan.SkippedName">Skipped or unreadable items</sys:String>
 
     <!-- ===================== Quarantine ===================== -->
 
@@ -146,12 +154,16 @@
     <sys:String x:Key="Strings.Quarantine.CopyOriginalPath">Copy original path</sys:String>
     <sys:String x:Key="Strings.Quarantine.CopyOriginalPathName">Copy the original file path</sys:String>
     <sys:String x:Key="Strings.Quarantine.RestoreExplainer">Restore decrypts the copy, verifies its SHA-256 hash, and only then writes the file. The encrypted copy is kept if verification fails.</sys:String>
+    <sys:String x:Key="Strings.Quarantine.SelectItemTitle">Nothing selected</sys:String>
     <sys:String x:Key="Strings.Quarantine.SelectItem">Select an item to review it</sys:String>
     <sys:String x:Key="Strings.Quarantine.VaultTech">AES-256-CBC encryption · HMAC-SHA256 integrity · per-user DPAPI-protected keys</sys:String>
     <sys:String x:Key="Strings.Quarantine.OpenFolder">Open folder</sys:String>
     <sys:String x:Key="Strings.Quarantine.OpenFolderName">Open the encrypted vault folder</sys:String>
     <sys:String x:Key="Strings.Quarantine.CleanFile">Clean the file</sys:String>
     <sys:String x:Key="Strings.Quarantine.CleanFileName">Clean the quarantined file</sys:String>
+    <sys:String x:Key="Strings.Quarantine.WorkTitle">The vault is working</sys:String>
+    <sys:String x:Key="Strings.Quarantine.WorkName">Quarantine operation in progress</sys:String>
+    <sys:String x:Key="Strings.Quarantine.ItemsName">Quarantined files</sys:String>
 
     <!-- ===================== History ===================== -->
 
@@ -174,6 +186,10 @@
     <sys:String x:Key="Strings.History.RunAnother">Run another quick scan</sys:String>
     <sys:String x:Key="Strings.History.RunAnotherName">Run another quick scan</sys:String>
     <sys:String x:Key="Strings.History.Footer">Scan history is stored in this Windows account's app data. Clearing it does not affect quarantined files.</sys:String>
+    <sys:String x:Key="Strings.History.EntriesName">Scan history entries</sys:String>
+    <sys:String x:Key="Strings.History.SkippedName">Skipped items from this scan</sys:String>
+    <sys:String x:Key="Strings.History.SelectScanTitle">Nothing selected</sys:String>
+    <sys:String x:Key="Strings.History.SelectScan">Select a scan to review it</sys:String>
 
     <!-- ===================== Settings ===================== -->
 
@@ -195,6 +211,7 @@
     <sys:String x:Key="Strings.Settings.ScanningBody">Controls how much of each file Lumen reads for its content rules.</sys:String>
     <sys:String x:Key="Strings.Settings.MaxPrefix">Maximum content prefix per file</sys:String>
     <sys:String x:Key="Strings.Settings.MaxPrefixName">Maximum megabytes inspected per file</sys:String>
+    <sys:String x:Key="Strings.Settings.SliderTooltip">1 to 16 MB</sys:String>
     <sys:String x:Key="Strings.Settings.LoggingLabel">Write a local diagnostic log</sys:String>
     <sys:String x:Key="Strings.Settings.LoggingBody">Technical events only. File contents, hashes and user names are never logged.</sys:String>
     <sys:String x:Key="Strings.Settings.TrayTitle">Window and tray</sys:String>
@@ -218,7 +235,7 @@
     <sys:String x:Key="Strings.Settings.LanguageEnglish">English</sys:String>
     <sys:String x:Key="Strings.Settings.LanguageEnglishName">Use the English interface</sys:String>
     <sys:String x:Key="Strings.Settings.LanguageFrench">Français</sys:String>
-    <sys:String x:Key="Strings.Settings.LanguageFrenchName">Utiliser l'interface en français</sys:String>
+    <sys:String x:Key="Strings.Settings.LanguageFrenchName">Use the French interface</sys:String>
     <sys:String x:Key="Strings.Settings.WatchedTitle">Watched folders</sys:String>
     <sys:String x:Key="Strings.Settings.WatchedBody">Extra folders the real-time monitor watches, in addition to the standard quick-scan folders. Paths that do not exist are ignored.</sys:String>
     <sys:String x:Key="Strings.Settings.ExcludedTitle">Excluded folders</sys:String>
@@ -227,6 +244,8 @@
     <sys:String x:Key="Strings.Settings.AddFolderName">Add a folder</sys:String>
     <sys:String x:Key="Strings.Settings.RemoveFolder">Remove</sys:String>
     <sys:String x:Key="Strings.Settings.RemoveFolderName">Remove this folder</sys:String>
+    <sys:String x:Key="Strings.Settings.NoWatched">Only the standard quick-scan folders are watched.</sys:String>
+    <sys:String x:Key="Strings.Settings.NoExcluded">No folder is excluded.</sys:String>
     <sys:String x:Key="Strings.Settings.RemediationTitle">Remediation</sys:String>
     <sys:String x:Key="Strings.Settings.RemediationBody">Let Lumen clean up a detection: stop the processes that use the file, remove the file permanently, and delete the autostart entries that point at it. Everything is presented as a plan that you confirm before anything happens.</sys:String>
     <sys:String x:Key="Strings.Settings.RemediationWarning">Warning: when this is on, Lumen can stop processes and delete files permanently. A file removed this way is not recoverable, except from the encrypted quarantine vault.</sys:String>
@@ -276,10 +295,10 @@
 
     <!-- ===================== Remediation ===================== -->
 
-    <sys:String x:Key="Strings.Remediation.Title">Remediation plan</sys:String>
     <sys:String x:Key="Strings.Remediation.Intro">Nothing has happened yet. This is what Lumen would do. Tick the steps you want, then confirm.</sys:String>
     <sys:String x:Key="Strings.Remediation.Confirm">Execute the selected steps</sys:String>
     <sys:String x:Key="Strings.Remediation.Cancel">Cancel</sys:String>
+    <sys:String x:Key="Strings.Remediation.Close">Close</sys:String>
     <sys:String x:Key="Strings.Remediation.File">File</sys:String>
     <sys:String x:Key="Strings.Remediation.Finding">Finding</sys:String>
     <sys:String x:Key="Strings.Remediation.Steps">Steps</sys:String>
