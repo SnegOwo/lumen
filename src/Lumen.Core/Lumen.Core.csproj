@@ -6,4 +6,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- The signature rules are data, not code, so they can be extended without recompiling.
+         The copy next to the assembly lets a user replace the file; the embedded copy is the
+         trusted fallback that keeps working when the file on disk is missing or broken. -->
+    <EmbeddedResource Include="Detection\Signatures\rules.json" />
+    <None Update="Detection\Signatures\rules.json" CopyToOutputDirectory="PreserveNewest" Link="Signatures\rules.json" />
+  </ItemGroup>
+
 </Project>

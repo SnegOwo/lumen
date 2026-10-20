@@ -66,7 +66,11 @@ public sealed class JsonFileStore<T> where T : class, new()
 
         try
         {
-            var backup = _path + ".corrupt-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+            // The name carries milliseconds and a short random suffix so that two
+            // corruptions in the same second cannot overwrite each other's backup.
+            var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+            var suffix = Guid.NewGuid().ToString("N")[..8];
+            var backup = _path + ".corrupt-" + stamp + "-" + suffix;
             File.Move(_path, backup, overwrite: true);
             return $"{reason} The unreadable file was preserved as {DisplayText.SanitizePath(backup)}.";
         }

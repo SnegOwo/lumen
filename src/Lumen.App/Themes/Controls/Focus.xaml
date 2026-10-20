@@ -1,0 +1,28 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- =====================================================================
+         Focus indicator.
+
+         Every focusable control in the app points FocusVisualStyle at this
+         style. The ring is drawn outside the control, so its corner radius is
+         Radius.Focus (Radius.Control + Focus.Ring.Offset): using the same
+         radius as the control itself makes the ring clip into the rounded
+         corner instead of hugging it.
+         ===================================================================== -->
+
+    <Style x:Key="FocusVisual" TargetType="Control">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border BorderBrush="{DynamicResource Accent.Text}"
+                            BorderThickness="{StaticResource Focus.Ring.Thickness}"
+                            CornerRadius="{StaticResource Radius.Focus}"
+                            Margin="{StaticResource Focus.Ring.Margin}"
+                            SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

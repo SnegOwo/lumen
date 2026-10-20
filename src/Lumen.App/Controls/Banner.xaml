@@ -49,7 +49,8 @@
                        FontSize="16"
                        Margin="0,1,12,0"
                        VerticalAlignment="Top"
-                       Text="&#xE946;">
+                       Text="&#xE946;"
+                       AutomationProperties.Name="">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Foreground" Value="{DynamicResource Info.Text}" />

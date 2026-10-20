@@ -5,9 +5,9 @@
          app can switch themes at runtime without recreating windows. -->
 
     <SolidColorBrush x:Key="App.Background" Color="#F4F7FB" />
-    <SolidColorBrush x:Key="App.BackgroundAlt" Color="#EEF3F9" />
     <SolidColorBrush x:Key="App.Surface" Color="#FFFFFF" />
     <SolidColorBrush x:Key="App.SurfaceAlt" Color="#F8FAFC" />
+    <SolidColorBrush x:Key="App.SurfaceCard" Color="#FFFFFF" />
     <SolidColorBrush x:Key="App.SurfaceHover" Color="#F1F5F9" />
     <SolidColorBrush x:Key="App.SurfacePressed" Color="#E2E8F0" />
     <SolidColorBrush x:Key="App.Border" Color="#E2E8F0" />
@@ -15,8 +15,10 @@
     <SolidColorBrush x:Key="App.TextPrimary" Color="#0B1220" />
     <SolidColorBrush x:Key="App.TextSecondary" Color="#475569" />
     <SolidColorBrush x:Key="App.TextMuted" Color="#64748B" />
-    <SolidColorBrush x:Key="App.TextOnDark" Color="#F1F5F9" />
-    <SolidColorBrush x:Key="App.TextOnDarkMuted" Color="#94A3B8" />
+
+    <!-- Shadow tint used by the drop shadows that still exist (tool tips,
+         modal dialogs). Replaces hard coded black. -->
+    <Color x:Key="App.ShadowColor">#0F172A</Color>
 
     <SolidColorBrush x:Key="Sidebar.Background" Color="#0B1B2B" />
     <SolidColorBrush x:Key="Sidebar.Border" Color="#16283C" />
@@ -42,6 +44,7 @@
     <SolidColorBrush x:Key="Warning.Soft" Color="#FEF3C7" />
     <SolidColorBrush x:Key="Danger.Primary" Color="#B91C1C" />
     <SolidColorBrush x:Key="Danger.PrimaryHover" Color="#991B1B" />
+    <SolidColorBrush x:Key="Danger.PrimaryPressed" Color="#7F1D1D" />
     <SolidColorBrush x:Key="Danger.OnPrimary" Color="#FFFFFF" />
     <SolidColorBrush x:Key="Danger.Text" Color="#B91C1C" />
     <SolidColorBrush x:Key="Danger.Soft" Color="#FEE2E2" />
@@ -52,6 +55,11 @@
     <SolidColorBrush x:Key="Chip.Background" Color="#F1F5F9" />
     <SolidColorBrush x:Key="Chip.Border" Color="#E2E8F0" />
     <SolidColorBrush x:Key="Chip.Text" Color="#475569" />
+
+    <!-- ================= Hero (dark gradient island) =================
+         The hero is a dark island in the light theme, so its controls stay
+         light on dark: a near white button with dark teal text, and a ghost
+         button that is a translucent white. -->
 
     <LinearGradientBrush x:Key="Hero.Background" StartPoint="0,0" EndPoint="1,1">
         <GradientStop Color="#0B1B2B" Offset="0" />
@@ -68,6 +76,17 @@
         <GradientStop Color="#002DD4BF" Offset="1" />
     </RadialGradientBrush>
 
+    <SolidColorBrush x:Key="Hero.ButtonBg" Color="#F0FDFA" />
+    <SolidColorBrush x:Key="Hero.ButtonFg" Color="#082F2C" />
+    <SolidColorBrush x:Key="Hero.ButtonBgHover" Color="#CCFBF1" />
+    <SolidColorBrush x:Key="Hero.ButtonBgPressed" Color="#99F6E4" />
+    <SolidColorBrush x:Key="Hero.ButtonBorder" Color="#F0FDFA" />
+    <SolidColorBrush x:Key="Hero.GhostBg" Color="#14FFFFFF" />
+    <SolidColorBrush x:Key="Hero.GhostFg" Color="#F8FAFC" />
+    <SolidColorBrush x:Key="Hero.GhostBorder" Color="#3B6470" />
+    <SolidColorBrush x:Key="Hero.Ring" Color="#552DD4BF" />
+    <SolidColorBrush x:Key="Hero.GlyphFg" Color="#7DE6D7" />
+
     <SolidColorBrush x:Key="Progress.Track" Color="#E2E8F0" />
     <SolidColorBrush x:Key="Progress.Fill" Color="#14B8A6" />
 
@@ -79,10 +98,10 @@
     <SolidColorBrush x:Key="Input.Border" Color="#CBD5E1" />
     <SolidColorBrush x:Key="Input.BorderFocus" Color="#0F766E" />
 
-    <SolidColorBrush x:Key="Dialog.Scrim" Color="#990B1220" />
     <SolidColorBrush x:Key="Tooltip.Background" Color="#0B1220" />
     <SolidColorBrush x:Key="Tooltip.Text" Color="#F8FAFC" />
 
-    <DropShadowEffect x:Key="Card.Effect" BlurRadius="16" ShadowDepth="2" Direction="270"
-                      Opacity="0.08" Color="#0F172A" />
+    <!-- Elevation: cards are flat. A one pixel border and a tinted fill carry
+         the hierarchy, so no blur effect is rendered at all. -->
+    <x:Null x:Key="Card.Effect" />
 </ResourceDictionary>

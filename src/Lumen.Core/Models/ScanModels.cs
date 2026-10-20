@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Lumen.Core.Models;
 
 /// <summary>
@@ -51,8 +53,19 @@ public sealed record ScanDetection
     public required IReadOnlyList<Finding> Findings { get; init; }
     public required DateTimeOffset DetectedUtc { get; init; }
 
+    /// <summary>
+    /// The file name of the detected path. Derived on demand so that a saved scan record
+    /// cannot carry a stale name.
+    /// </summary>
+    [JsonIgnore]
     public string FileName => Path.GetFileName(FilePath);
+
+    /// <summary>Number of rules that matched. Derived on demand.</summary>
+    [JsonIgnore]
     public int FindingCount => Findings.Count;
+
+    /// <summary>The first rule that matched, or null when nothing matched.</summary>
+    [JsonIgnore]
     public Finding? PrimaryFinding => Findings.Count > 0 ? Findings[0] : null;
 }
 
@@ -96,7 +109,12 @@ public sealed record ScanOutcome
     public required DateTimeOffset StartedUtc { get; init; }
     public required DateTimeOffset FinishedUtc { get; init; }
 
+    /// <summary>How long the scan took. Derived on demand.</summary>
+    [JsonIgnore]
     public TimeSpan Duration => FinishedUtc - StartedUtc;
+
+    /// <summary>Whether the scan produced any detection. Derived on demand.</summary>
+    [JsonIgnore]
     public bool HasFindings => Detections.Count > 0;
 }
 

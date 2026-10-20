@@ -37,7 +37,7 @@ public static class AtomicFile
                 {
                     File.Replace(temp, path, destinationBackupFileName: null, ignoreMetadataErrors: true);
                 }
-                catch (Exception ex) when (ex is IOException or PlatformNotSupportedException)
+                catch (Exception ex) when (ex is IOException or PlatformNotSupportedException or UnauthorizedAccessException)
                 {
                     File.Move(temp, path, overwrite: true);
                 }

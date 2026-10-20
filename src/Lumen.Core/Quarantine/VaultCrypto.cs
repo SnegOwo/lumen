@@ -9,7 +9,13 @@ namespace Lumen.Core.Quarantine;
 /// </summary>
 internal static class VaultCrypto
 {
-    private const int KeySize = 32;
+    /// <summary>
+    /// Size of an AES-256 key in bytes. Shared with <see cref="QuarantineService"/> so the
+    /// two halves of the vault format can never drift apart.
+    /// </summary>
+    internal const int AesKeySize = 32;
+
+    private const int KeySize = AesKeySize;
     private const int IvSize = 16;
     private const int ProgressStep = 4 * 1024 * 1024;
     private static readonly byte[] Magic = "LQ01"u8.ToArray();

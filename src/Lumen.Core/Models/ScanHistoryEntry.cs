@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Lumen.Core.Models;
 
 namespace Lumen.Core.Models;
@@ -19,8 +20,12 @@ public sealed record ScanHistoryEntry
     /// <summary>A few error samples for the history details pane. Capped by the engine.</summary>
     public IReadOnlyList<ScanError> Errors { get; init; } = [];
 
+    /// <summary>How long the scan took. Derived on demand so it cannot go stale on disk.</summary>
+    [JsonIgnore]
     public TimeSpan Duration => FinishedUtc - StartedUtc;
 
+    /// <summary>Short status line for the history list. Derived on demand.</summary>
+    [JsonIgnore]
     public string StatusText => Cancelled
         ? "Cancelled"
         : ErrorCount > 0

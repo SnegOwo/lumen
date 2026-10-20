@@ -16,9 +16,25 @@ public static class PathRules
 {
     private static readonly char Separator = Path.DirectorySeparatorChar;
 
+    /// <summary>
+    /// The folders Lumen treats as system-critical. Resolved once: the set does not change
+    /// while the application runs, and looking them up on every check was slow enough to
+    /// show up in scan timings.
+    /// </summary>
+    private static readonly string[] SensitiveRoots = BuildSensitiveRoots();
+
     public static string NormalizeDirectory(string path)
     {
         var full = Path.GetFullPath(path.Trim());
+        return TrimTrailingSeparator(full);
+    }
+
+    /// <summary>
+    /// Removes a trailing separator from an already absolute path, except for a drive or
+    /// UNC root, which must keep it.
+    /// </summary>
+    private static string TrimTrailingSeparator(string full)
+    {
         var root = Path.GetPathRoot(full);
         if (!string.IsNullOrEmpty(root) && full.Length > root.Length)
         {
@@ -30,10 +46,24 @@ public static class PathRules
 
     public static string NormalizeFile(string path) => Path.GetFullPath(path.Trim());
 
+    /// <summary>
+    /// True when the path is inside the given folder. Both paths are normalized first, so
+    /// "C:\Folder" does not match "C:\Folder2".
+    /// </summary>
     public static bool IsWithin(string path, string directory)
     {
         var candidate = NormalizeDirectory(path);
         var parent = NormalizeDirectory(directory);
+        return IsWithinNormalized(candidate, parent);
+    }
+
+    /// <summary>
+    /// Containment test for two paths that have already been normalized. Kept separate so
+    /// callers that check many paths against one folder do not re-normalize the folder
+    /// for every candidate.
+    /// </summary>
+    private static bool IsWithinNormalized(string candidate, string parent)
+    {
         if (string.Equals(candidate, parent, StringComparison.OrdinalIgnoreCase)) return true;
 
         var prefix = parent.EndsWith(Separator) ? parent : parent + Separator;
@@ -81,6 +111,10 @@ public static class PathRules
                    StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// True when the path is a drive root or lives inside Windows, Program Files or
+    /// ProgramData. Lumen does not write to those locations.
+    /// </summary>
     public static bool IsSystemCritical(string path)
     {
         try
@@ -88,19 +122,9 @@ public static class PathRules
             var full = NormalizeDirectory(path);
             if (IsDriveRoot(full)) return true;
 
-            var sensitiveRoots = new[]
+            foreach (var root in SensitiveRoots)
             {
-                Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                Environment.SystemDirectory
-            };
-
-            foreach (var root in sensitiveRoots)
-            {
-                if (string.IsNullOrWhiteSpace(root)) continue;
-                if (IsWithin(full, root)) return true;
+                if (IsWithinNormalized(full, root)) return true;
             }
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
@@ -109,6 +133,40 @@ public static class PathRules
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Resolves the folders Windows considers protected. A folder that cannot be resolved
+    /// is skipped rather than guessed at.
+    /// </summary>
+    private static string[] BuildSensitiveRoots()
+    {
+        var candidates = new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            Environment.SystemDirectory
+        };
+
+        var roots = new List<string>();
+        foreach (var candidate in candidates)
+        {
+            if (string.IsNullOrWhiteSpace(candidate)) continue;
+            try
+            {
+                var normalized = NormalizeDirectory(candidate);
+                if (!roots.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                    roots.Add(normalized);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                // A folder that cannot be resolved is simply not protected by this check.
+            }
+        }
+
+        return roots.ToArray();
     }
 
     public static PathValidation ValidateTarget(string? input)
@@ -167,22 +225,42 @@ public static class PathRules
             .ToArray();
     }
 
+    /// <summary>
+    /// Normalizes the folders a scan should cover. Roots that Windows cannot parse are
+    /// dropped instead of stopping the scan, and roots that are inside another root are
+    /// removed so no file is scanned twice.
+    /// </summary>
     public static IReadOnlyList<string> NormalizeRoots(IEnumerable<string> roots)
     {
         var normalized = new List<string>();
         foreach (var root in roots)
         {
             if (string.IsNullOrWhiteSpace(root)) continue;
-            var full = Path.GetFullPath(root.Trim());
+
+            string full;
+            try
+            {
+                full = Path.GetFullPath(root.Trim());
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                // A root that Windows cannot even parse is dropped instead of throwing.
+                // The other roots are still scanned.
+                continue;
+            }
+
             if (!normalized.Contains(full, StringComparer.OrdinalIgnoreCase))
                 normalized.Add(full);
         }
 
         // Remove roots that are already inside another root so files are not scanned twice.
         var result = new List<string>();
+        var parents = new List<string>();
         foreach (var root in normalized.OrderBy(path => path.Length))
         {
-            if (result.Any(parent => IsWithin(root, parent))) continue;
+            var trimmed = TrimTrailingSeparator(root);
+            if (parents.Any(parent => IsWithinNormalized(trimmed, parent))) continue;
+            parents.Add(trimmed);
             result.Add(root);
         }
 

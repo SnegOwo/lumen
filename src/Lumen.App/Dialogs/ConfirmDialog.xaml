@@ -31,7 +31,8 @@
             CornerRadius="16"
             Margin="26">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="34" ShadowDepth="6" Opacity="0.32" Color="#000000" />
+            <DropShadowEffect BlurRadius="34" ShadowDepth="6" Opacity="0.32"
+                              Color="{DynamicResource App.ShadowColor}" />
         </Border.Effect>
 
         <Grid Margin="26,24,26,24">
@@ -53,16 +54,17 @@
                         Background="{DynamicResource Info.Soft}" VerticalAlignment="Top">
                     <TextBlock x:Name="IconGlyph" Text="&#xE946;"
                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                               FontSize="19"
+                               FontSize="20"
                                Foreground="{DynamicResource Info.Text}"
                                HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
+                               VerticalAlignment="Center"
+                               AutomationProperties.Name="" />
                 </Border>
 
                 <TextBlock Grid.Column="1"
                            Text="{Binding Title}"
                            Style="{StaticResource SectionTitle}"
-                           FontSize="19"
+                           FontSize="18"
                            Margin="14,0,12,0"
                            VerticalAlignment="Center" />
 
@@ -75,12 +77,20 @@
                         Click="CloseButton_Click" />
             </Grid>
 
-            <TextBlock Grid.Row="1"
-                       Text="{Binding Message}"
-                       Style="{StaticResource BodySecondary}"
-                       FontSize="13.5"
-                       LineHeight="21"
-                       Margin="0,16,0,0" />
+            <!-- The message can be long (scan summaries, rule explanations), so it
+                 scrolls inside a bounded area instead of being silently clipped
+                 by the window's MaxHeight. -->
+            <ScrollViewer Grid.Row="1"
+                          Margin="0,16,0,0"
+                          MaxHeight="240"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Focusable="False">
+                <TextBlock Text="{Binding Message}"
+                           Style="{StaticResource BodySecondary}"
+                           FontSize="14"
+                           LineHeight="22" />
+            </ScrollViewer>
 
             <Border Grid.Row="2"
                     Style="{StaticResource InsetCard}"
@@ -88,7 +98,8 @@
                     MaxHeight="170"
                     Visibility="{Binding Details, Converter={StaticResource NullToVisibility}}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
+                              HorizontalScrollBarVisibility="Disabled"
+                              Focusable="False">
                     <TextBox Text="{Binding Details, Mode=OneWay}"
                              IsReadOnly="True"
                              TextWrapping="Wrap"
@@ -96,9 +107,9 @@
                              Background="Transparent"
                              Foreground="{DynamicResource App.TextSecondary}"
                              FontFamily="Cascadia Mono, Consolas, Courier New"
-                             FontSize="11.5"
+                             FontSize="11"
                              Padding="0"
-                             IsTabStop="True"
+                             IsTabStop="False"
                              AutomationProperties.Name="Dialog details" />
                 </ScrollViewer>
             </Border>

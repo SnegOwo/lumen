@@ -19,6 +19,12 @@
     <FileVersion>1.0.0.0</FileVersion>
     <InformationalVersion>1.0.0</InformationalVersion>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- WFO0003 asks us to move the DPI settings out of app.manifest and into
+         ApplicationHighDpiMode. That is correct for a WinForms app, but this app is
+         WPF-primary and Windows Forms is used only for the notification-area icon.
+         WPF reads its PerMonitorV2 awareness from the manifest, so the manifest
+         entries are deliberate and the analyzer is silenced here instead. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

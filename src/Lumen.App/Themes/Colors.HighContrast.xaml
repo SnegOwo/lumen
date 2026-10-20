@@ -5,9 +5,9 @@
          contrast choices are respected instead of being overridden by brand colors. -->
 
     <SolidColorBrush x:Key="App.Background" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
-    <SolidColorBrush x:Key="App.BackgroundAlt" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="App.Surface" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="App.SurfaceAlt" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+    <SolidColorBrush x:Key="App.SurfaceCard" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="App.SurfaceHover" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="App.SurfacePressed" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="App.Border" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
@@ -15,8 +15,8 @@
     <SolidColorBrush x:Key="App.TextPrimary" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
     <SolidColorBrush x:Key="App.TextSecondary" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
     <SolidColorBrush x:Key="App.TextMuted" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
-    <SolidColorBrush x:Key="App.TextOnDark" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
-    <SolidColorBrush x:Key="App.TextOnDarkMuted" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+
+    <Color x:Key="App.ShadowColor">#000000</Color>
 
     <SolidColorBrush x:Key="Sidebar.Background" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="Sidebar.Border" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
@@ -42,16 +42,24 @@
     <SolidColorBrush x:Key="Warning.Soft" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="Danger.Primary" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
     <SolidColorBrush x:Key="Danger.PrimaryHover" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="Danger.PrimaryPressed" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
     <SolidColorBrush x:Key="Danger.OnPrimary" Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
     <SolidColorBrush x:Key="Danger.Text" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
     <SolidColorBrush x:Key="Danger.Soft" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
-    <SolidColorBrush x:Key="Danger.SoftBorder" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="Danger.SoftBorder" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
     <SolidColorBrush x:Key="Info.Text" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
     <SolidColorBrush x:Key="Info.Soft" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
 
     <SolidColorBrush x:Key="Chip.Background" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="Chip.Border" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
     <SolidColorBrush x:Key="Chip.Text" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+
+    <!-- ================= Hero =================
+         In high contrast the hero uses the system window colour, so it is a
+         light island rather than a dark one. Its controls therefore have to
+         follow the system colours (highlight / window text) instead of the
+         mint and teal of the brand themes, otherwise they would drop well
+         below the contrast ratio the operating system asked for. -->
 
     <SolidColorBrush x:Key="Hero.Background" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="Hero.Border" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
@@ -60,6 +68,17 @@
     <SolidColorBrush x:Key="Hero.BadgeBackground" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="Hero.BadgeText" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
     <SolidColorBrush x:Key="Hero.Glow" Color="Transparent" />
+
+    <SolidColorBrush x:Key="Hero.ButtonBg" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="Hero.ButtonFg" Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
+    <SolidColorBrush x:Key="Hero.ButtonBgHover" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="Hero.ButtonBgPressed" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="Hero.ButtonBorder" Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
+    <SolidColorBrush x:Key="Hero.GhostBg" Color="Transparent" />
+    <SolidColorBrush x:Key="Hero.GhostFg" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="Hero.GhostBorder" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="Hero.Ring" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="Hero.GlyphFg" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
 
     <SolidColorBrush x:Key="Progress.Track" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="Progress.Fill" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
@@ -72,10 +91,9 @@
     <SolidColorBrush x:Key="Input.Border" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
     <SolidColorBrush x:Key="Input.BorderFocus" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
 
-    <SolidColorBrush x:Key="Dialog.Scrim" Color="#80000000" />
     <SolidColorBrush x:Key="Tooltip.Background" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="Tooltip.Text" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
 
+    <!-- Elevation: flat, border only. -->
     <x:Null x:Key="Card.Effect" />
 </ResourceDictionary>
-

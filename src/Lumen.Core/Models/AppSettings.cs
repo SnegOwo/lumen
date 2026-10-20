@@ -1,3 +1,5 @@
+using Lumen.Core.Util;
+
 namespace Lumen.Core.Models;
 
 public sealed record AppSettings
@@ -25,6 +27,51 @@ public sealed record AppSettings
     /// </summary>
     public bool RealtimeAutoQuarantine { get; init; } = false;
 
+    /// <summary>
+    /// Extra folders the real-time monitor should watch, in addition to the standard
+    /// quick-scan folders. Empty means "the quick-scan folders only", which is the
+    /// behaviour of Lumen 1.0. Paths that do not exist are ignored at runtime.
+    /// </summary>
+    public IReadOnlyList<string> RealtimeWatchFolders { get; init; } = [];
+
+    /// <summary>
+    /// Folders whose entire subtree the real-time monitor must skip, in addition to
+    /// Lumen's own data folder. Use this for build caches and tool directories that
+    /// are noisy but harmless.
+    /// </summary>
+    public IReadOnlyList<string> RealtimeExcludedFolders { get; init; } = [];
+
+    /// <summary>
+    /// Master switch for the remediation engine (process termination, permanent
+    /// removal, persistence cleanup). Off by default: with it off, Lumen can only
+    /// detect and quarantine, exactly as in Lumen 1.0.
+    /// </summary>
+    public bool RemediationEnabled { get; init; } = false;
+
+    /// <summary>
+    /// The user interface language. English and French are shipped.
+    /// </summary>
+    public AppLanguage Language { get; init; } = AppLanguage.English;
+
+    /// <summary>
+    /// Show the full-screen detection alert when something is flagged. The alert is
+    /// deliberately loud: this is a demonstration build, and a detection that nobody
+    /// notices is a detection that did not happen.
+    /// </summary>
+    public bool DetectionAlertEnabled { get; init; } = true;
+
+    /// <summary>
+    /// Play a sound with the detection alert. Off by default because an unexpected
+    /// noise on someone's machine is rude.
+    /// </summary>
+    public bool DetectionAlertSoundEnabled { get; init; } = false;
+
+    /// <summary>
+    /// Show the cat. It has no effect on any detection; it exists because a security
+    /// tool that takes itself too seriously is a security tool nobody wants to open.
+    /// </summary>
+    public bool DetectionAlertCatEnabled { get; init; } = true;
+
     public static AppSettings Default => new();
 
     /// <summary>Clamps out-of-range or unknown values so a bad file cannot break startup.</summary>
@@ -36,7 +83,82 @@ public sealed record AppSettings
         {
             SchemaVersion = 1,
             Theme = theme,
-            MaxInspectMegabytes = megabytes
+            MaxInspectMegabytes = megabytes,
+            RealtimeWatchFolders = NormalizeFolders(RealtimeWatchFolders),
+            RealtimeExcludedFolders = NormalizeFolders(RealtimeExcludedFolders)
         };
+    }
+
+    /// <summary>
+    /// Normalizes and de-duplicates a folder list. Unusable paths are dropped rather
+    /// than throwing, because this runs during startup on a file the user may have
+    /// edited by hand.
+    /// </summary>
+    private static IReadOnlyList<string> NormalizeFolders(IEnumerable<string>? folders)
+    {
+        if (folders is null) return [];
+
+        var result = new List<string>();
+        foreach (var folder in folders)
+        {
+            if (string.IsNullOrWhiteSpace(folder)) continue;
+            try
+            {
+                var full = PathRules.NormalizeDirectory(folder);
+                if (!result.Contains(full, StringComparer.OrdinalIgnoreCase)) result.Add(full);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                // A malformed path in the settings file is ignored rather than
+                // preventing the application from starting.
+            }
+        }
+
+        // Returned as an array so that the value is stable and cheap to compare. The
+        // empty case returns the shared Array.Empty instance: List<T>.ToArray() always
+        // allocates, so an empty list would otherwise produce a different instance on
+        // every call and break reference-based comparisons of the default settings.
+        return result.Count == 0 ? Array.Empty<string>() : result.ToArray();
+    }
+
+    /// <summary>
+    /// Compares two settings records by VALUE. The generated record equality would
+    /// compare the folder lists by reference, so two settings that describe the same
+    /// folders would be reported as different — which made "the corrupt file falls back
+    /// to the defaults" impossible to assert.
+    /// </summary>
+    public bool Equals(AppSettings? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+
+        return SchemaVersion == other.SchemaVersion
+            && Theme == other.Theme
+            && LoggingEnabled == other.LoggingEnabled
+            && MaxInspectMegabytes == other.MaxInspectMegabytes
+            && MinimizeToTray == other.MinimizeToTray
+            && ShowTrayNotifications == other.ShowTrayNotifications
+            && RealtimeProtectionEnabled == other.RealtimeProtectionEnabled
+            && RealtimeAutoQuarantine == other.RealtimeAutoQuarantine
+            && RemediationEnabled == other.RemediationEnabled
+            && RealtimeWatchFolders.SequenceEqual(other.RealtimeWatchFolders, StringComparer.OrdinalIgnoreCase)
+            && RealtimeExcludedFolders.SequenceEqual(other.RealtimeExcludedFolders, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(SchemaVersion);
+        hash.Add(Theme);
+        hash.Add(LoggingEnabled);
+        hash.Add(MaxInspectMegabytes);
+        hash.Add(MinimizeToTray);
+        hash.Add(ShowTrayNotifications);
+        hash.Add(RealtimeProtectionEnabled);
+        hash.Add(RealtimeAutoQuarantine);
+        hash.Add(RemediationEnabled);
+        foreach (var folder in RealtimeWatchFolders) hash.Add(folder, StringComparer.OrdinalIgnoreCase);
+        foreach (var folder in RealtimeExcludedFolders) hash.Add(folder, StringComparer.OrdinalIgnoreCase);
+        return hash.ToHashCode();
     }
 }

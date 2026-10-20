@@ -8,6 +8,7 @@ using Lumen.Core.Logging;
 using Lumen.Core.Models;
 using Lumen.Core.Protection;
 using Lumen.Core.Quarantine;
+using Lumen.Core.Remediation;
 using Lumen.Core.Scanning;
 using Lumen.Core.Storage;
 using Lumen.Core.Util;
@@ -49,12 +50,26 @@ public sealed class AppServices : IDisposable
 
         var detectors = DetectorRegistry.CreateDefault();
         ScanEngine = new ScanEngine(detectors, Clock, Log);
+
+        // The remediation engine is pure orchestration over these four seams. Every
+        // operating-system call happens inside one of the adapters, so the engine itself
+        // can be tested without touching a real process, registry or file.
+        var fileOperations = new WindowsFileOperations();
+        Remediation = new RemediationEngine(
+            new WindowsProcessTerminator(),
+            new WindowsPersistenceEnumerator(Log),
+            fileOperations,
+            fileOperations,
+            FileAuditJournal.CreateUnder(Paths, Clock, Log),
+            Clock,
+            Log,
+            remediationEnabled: Settings.RemediationEnabled);
+
         Realtime = new RealtimeMonitor(
             detectors,
-            ScanPlanner.QuickFolders(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)),
-            [Paths.Root],
-            Math.Clamp((long)Settings.MaxInspectMegabytes * 1024L * 1024L, 64L * 1024L, 16L * 1024L * 1024L),
+            RealtimeWatchRoots(),
+            RealtimeExclusions(),
+            InspectBytesFor(),
             Clock,
             Log);
         Realtime.Detection += OnRealtimeDetection;
@@ -86,6 +101,12 @@ public sealed class AppServices : IDisposable
     public QuarantineService Quarantine { get; }
     public ScanEngine ScanEngine { get; }
 
+    /// <summary>
+    /// The remediation engine. It refuses to plan or to act unless
+    /// <see cref="AppSettings.RemediationEnabled"/> is on.
+    /// </summary>
+    public RemediationEngine Remediation { get; }
+
     /// <summary>On-access monitoring of the quick-scan folders while Lumen runs.</summary>
     public RealtimeMonitor Realtime { get; }
     public DefenderStatusService Defender { get; }
@@ -103,6 +124,9 @@ public sealed class AppServices : IDisposable
         Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
 
     public string DataDirectory => Paths.Root;
+
+    /// <summary>The user interface language, taken from the saved settings.</summary>
+    public AppLanguage Language => Settings.Language;
 
     public event EventHandler? DataChanged;
     public event EventHandler? SettingsChanged;
@@ -130,6 +154,7 @@ public sealed class AppServices : IDisposable
         if (Tray is not null) Tray.NotificationsEnabled = next.ShowTrayNotifications;
 
         ApplyRealtimeSetting(next);
+        Remediation.RemediationEnabled = next.RemediationEnabled;
 
         try
         {
@@ -147,11 +172,24 @@ public sealed class AppServices : IDisposable
 
     public void NotifyDataChanged() => OnDataChanged();
 
-    /// <summary>Starts or stops on-access monitoring to match the saved setting.</summary>
+    /// <summary>
+    /// Starts or stops on-access monitoring to match the saved setting, and pushes the
+    /// watched folders, the exclusions and the inspection limit into the running monitor.
+    /// The limit used to be frozen when the monitor was created, so changing it in
+    /// Settings had no effect on real-time protection.
+    /// </summary>
     private void ApplyRealtimeSetting(AppSettings settings)
     {
         try
         {
+            var configured = Realtime.Configure(
+                RealtimeWatchRoots(settings),
+                RealtimeExclusions(settings),
+                InspectBytesFor(settings));
+
+            if (!configured.Ok)
+                Log.Warn("Realtime", configured.Message ?? "Real-time protection could not be reconfigured.");
+
             if (settings.RealtimeProtectionEnabled && !Realtime.IsRunning) Realtime.Start();
             else if (!settings.RealtimeProtectionEnabled && Realtime.IsRunning) Realtime.Stop();
         }
@@ -159,6 +197,42 @@ public sealed class AppServices : IDisposable
         {
             Log.Warn("Realtime", "Real-time protection could not be reconfigured.", ex);
         }
+    }
+
+    /// <summary>
+    /// The folders the real-time monitor watches: the standard quick-scan folders plus
+    /// any folder the user added.
+    /// </summary>
+    private IReadOnlyList<string> RealtimeWatchRoots(AppSettings? settings = null)
+    {
+        var current = settings ?? Settings;
+        return RealtimeMonitor.BuildWatchRoots(
+            UserProfile,
+            current.RealtimeWatchFolders,
+            RealtimeExcludedFolders(current));
+    }
+
+    /// <summary>
+    /// The subtrees the real-time monitor skips: Lumen's own data folder, plus anything
+    /// the user excluded.
+    /// </summary>
+    private IReadOnlyList<string> RealtimeExcludedFolders(AppSettings settings)
+    {
+        var exclusions = new List<string> { Paths.Root };
+        exclusions.AddRange(settings.RealtimeExcludedFolders);
+        return exclusions;
+    }
+
+    private IReadOnlyList<string> RealtimeExclusions(AppSettings? settings = null) =>
+        RealtimeExcludedFolders(settings ?? Settings);
+
+    private long InspectBytesFor(AppSettings? settings = null)
+    {
+        var current = settings ?? Settings;
+        return Math.Clamp(
+            (long)current.MaxInspectMegabytes * 1024L * 1024L,
+            64L * 1024L,
+            16L * 1024L * 1024L);
     }
 
     /// <summary>
@@ -177,7 +251,11 @@ public sealed class AppServices : IDisposable
             (Settings.RealtimeAutoQuarantine ? " Auto-quarantine enabled." : string.Empty));
 
         var notify = Tray is not null && Settings.ShowTrayNotifications;
-        var auto = Settings.RealtimeAutoQuarantine && detection.Sha256 is not null;
+
+        // A detection is only actionable when its digest could be read. The previous code
+        // silently did nothing in that case, so the file was neither quarantined nor
+        // reported to the user.
+        var auto = Settings.RealtimeAutoQuarantine && detection.IsActionable;
 
         RunOnUI(() =>
         {
@@ -189,10 +267,13 @@ public sealed class AppServices : IDisposable
             }
             else if (notify)
             {
+                var reason = detection.IsActionable
+                    ? string.Empty
+                    : $" The file could not be hashed ({detection.Sha256Error}), so it was left alone.";
                 Tray?.Notify(
                     "Real-time protection",
                     $"{detection.FileName} matched {Presentation.Count(detection.Findings.Count, "rule")}. " +
-                    "Nothing was changed.");
+                    "Nothing was changed." + reason);
             }
         });
     }
@@ -310,6 +391,7 @@ public sealed class AppServices : IDisposable
         Realtime.Dispose();
         Quarantine.Dispose();
         Tray?.Dispose();
+        Theme.Dispose();
         Log.Info("App", "Lumen exited.");
     }
 

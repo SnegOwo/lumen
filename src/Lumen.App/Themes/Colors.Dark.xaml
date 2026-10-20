@@ -5,9 +5,9 @@
          colors are lightened to keep WCAG-friendly contrast on dark backgrounds. -->
 
     <SolidColorBrush x:Key="App.Background" Color="#0A1220" />
-    <SolidColorBrush x:Key="App.BackgroundAlt" Color="#0C1625" />
     <SolidColorBrush x:Key="App.Surface" Color="#101B2D" />
     <SolidColorBrush x:Key="App.SurfaceAlt" Color="#0D1727" />
+    <SolidColorBrush x:Key="App.SurfaceCard" Color="#131F32" />
     <SolidColorBrush x:Key="App.SurfaceHover" Color="#17243A" />
     <SolidColorBrush x:Key="App.SurfacePressed" Color="#1C2C45" />
     <SolidColorBrush x:Key="App.Border" Color="#1E2C42" />
@@ -15,8 +15,8 @@
     <SolidColorBrush x:Key="App.TextPrimary" Color="#E6EDF7" />
     <SolidColorBrush x:Key="App.TextSecondary" Color="#B3C2D6" />
     <SolidColorBrush x:Key="App.TextMuted" Color="#8B9DB5" />
-    <SolidColorBrush x:Key="App.TextOnDark" Color="#F1F5F9" />
-    <SolidColorBrush x:Key="App.TextOnDarkMuted" Color="#94A3B8" />
+
+    <Color x:Key="App.ShadowColor">#000000</Color>
 
     <SolidColorBrush x:Key="Sidebar.Background" Color="#070F1C" />
     <SolidColorBrush x:Key="Sidebar.Border" Color="#132033" />
@@ -42,6 +42,7 @@
     <SolidColorBrush x:Key="Warning.Soft" Color="#352605" />
     <SolidColorBrush x:Key="Danger.Primary" Color="#DC2626" />
     <SolidColorBrush x:Key="Danger.PrimaryHover" Color="#EF4444" />
+    <SolidColorBrush x:Key="Danger.PrimaryPressed" Color="#B91C1C" />
     <SolidColorBrush x:Key="Danger.OnPrimary" Color="#FFFFFF" />
     <SolidColorBrush x:Key="Danger.Text" Color="#F87171" />
     <SolidColorBrush x:Key="Danger.Soft" Color="#3A1013" />
@@ -52,6 +53,10 @@
     <SolidColorBrush x:Key="Chip.Background" Color="#17243A" />
     <SolidColorBrush x:Key="Chip.Border" Color="#243550" />
     <SolidColorBrush x:Key="Chip.Text" Color="#B8C7DB" />
+
+    <!-- ================= Hero (dark gradient island) =================
+         The hero is a dark island here too, so its controls keep the same
+         light on dark treatment as the light theme. -->
 
     <LinearGradientBrush x:Key="Hero.Background" StartPoint="0,0" EndPoint="1,1">
         <GradientStop Color="#08111F" Offset="0" />
@@ -68,6 +73,17 @@
         <GradientStop Color="#002DD4BF" Offset="1" />
     </RadialGradientBrush>
 
+    <SolidColorBrush x:Key="Hero.ButtonBg" Color="#F0FDFA" />
+    <SolidColorBrush x:Key="Hero.ButtonFg" Color="#082F2C" />
+    <SolidColorBrush x:Key="Hero.ButtonBgHover" Color="#CCFBF1" />
+    <SolidColorBrush x:Key="Hero.ButtonBgPressed" Color="#99F6E4" />
+    <SolidColorBrush x:Key="Hero.ButtonBorder" Color="#F0FDFA" />
+    <SolidColorBrush x:Key="Hero.GhostBg" Color="#14FFFFFF" />
+    <SolidColorBrush x:Key="Hero.GhostFg" Color="#F8FAFC" />
+    <SolidColorBrush x:Key="Hero.GhostBorder" Color="#3B6470" />
+    <SolidColorBrush x:Key="Hero.Ring" Color="#552DD4BF" />
+    <SolidColorBrush x:Key="Hero.GlyphFg" Color="#7DE6D7" />
+
     <SolidColorBrush x:Key="Progress.Track" Color="#1B2A40" />
     <SolidColorBrush x:Key="Progress.Fill" Color="#2DD4BF" />
 
@@ -79,9 +95,9 @@
     <SolidColorBrush x:Key="Input.Border" Color="#2B3B55" />
     <SolidColorBrush x:Key="Input.BorderFocus" Color="#2DD4BF" />
 
-    <SolidColorBrush x:Key="Dialog.Scrim" Color="#B3000000" />
     <SolidColorBrush x:Key="Tooltip.Background" Color="#E6EDF7" />
     <SolidColorBrush x:Key="Tooltip.Text" Color="#0B1220" />
 
+    <!-- Elevation: flat, border only. -->
     <x:Null x:Key="Card.Effect" />
 </ResourceDictionary>

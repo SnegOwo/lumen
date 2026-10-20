@@ -8,9 +8,11 @@ namespace Lumen.App.Services;
 
 /// <summary>
 /// Swaps color dictionaries at runtime and asks DWM to render the native title bar in a
-/// matching dark or light mode. High contrast always wins over the brand themes.
+/// matching dark or light mode. High contrast always wins over the brand themes, because
+/// the operating system's own accessibility setting must not be overridden by a
+/// preference stored in a settings file.
 /// </summary>
-public sealed class ThemeService
+public sealed class ThemeService : IDisposable
 {
     private const string PersonalizeKey = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
     private const int DwmUseImmersiveDarkMode = 20;
@@ -18,6 +20,7 @@ public sealed class ThemeService
 
     private ResourceDictionary? _currentTheme;
     private AppTheme _preference = AppTheme.System;
+    private bool _disposed;
 
     public ThemeService()
     {
@@ -25,8 +28,23 @@ public sealed class ThemeService
     }
 
     public AppTheme Preference => _preference;
+
+    /// <summary>True when the dark palette is in effect. High contrast is never dark.</summary>
     public bool IsDark { get; private set; }
-    public bool IsHighContrast => SystemParameters.HighContrast;
+
+    /// <summary>
+    /// True when the operating system requests high contrast, or when the user picked
+    /// the high-contrast palette explicitly.
+    /// </summary>
+    public bool IsHighContrast =>
+        SystemParameters.HighContrast || _preference == AppTheme.HighContrast;
+
+    /// <summary>
+    /// True when the high-contrast palette is in effect because Windows asked for it,
+    /// rather than because the user chose it. The theme toggle is disabled in that case,
+    /// because switching the palette would fight the operating system.
+    /// </summary>
+    public bool IsSystemHighContrast => SystemParameters.HighContrast;
 
     public bool Apply(AppTheme preference)
     {
@@ -34,18 +52,21 @@ public sealed class ThemeService
 
         var dictionary = IsHighContrast
             ? Load("Colors.HighContrast.xaml")
-            : Resolve(preference) == AppTheme.Dark
+            : Resolve(_preference) == AppTheme.Dark
                 ? Load("Colors.Dark.xaml")
                 : Load("Colors.Light.xaml");
 
-        IsDark = !IsHighContrast && Resolve(preference) == AppTheme.Dark;
+        IsDark = !IsHighContrast && Resolve(_preference) == AppTheme.Dark;
 
-        var merged = Application.Current.Resources.MergedDictionaries;
+        var application = Application.Current;
+        if (application is null) return IsDark;
+
+        var merged = application.Resources.MergedDictionaries;
         if (_currentTheme is not null) merged.Remove(_currentTheme);
         merged.Insert(0, dictionary);
         _currentTheme = dictionary;
 
-        foreach (Window window in Application.Current.Windows)
+        foreach (Window window in application.Windows)
         {
             if (window.IsLoaded) ApplyWindowChrome(window);
         }
@@ -102,6 +123,7 @@ public sealed class ThemeService
 
     private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
+        if (_disposed) return;
         if (_preference != AppTheme.System && e.Category != UserPreferenceCategory.General) return;
 
         var dispatcher = Application.Current?.Dispatcher;
@@ -109,11 +131,24 @@ public sealed class ThemeService
 
         dispatcher.BeginInvoke(() =>
         {
+            if (_disposed) return;
             if (_preference == AppTheme.System || SystemParameters.HighContrast)
             {
                 Apply(_preference);
             }
         });
+    }
+
+    /// <summary>
+    /// Unsubscribes the system preference handler. Without this the static
+    /// <see cref="SystemEvents"/> event keeps the service alive for the lifetime of the
+    /// process, which is a leak on every shutdown path that does not exit the process.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
     }
 
     [DllImport("dwmapi.dll")]

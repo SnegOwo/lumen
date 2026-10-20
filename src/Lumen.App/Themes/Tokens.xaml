@@ -1,0 +1,128 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- =====================================================================
+         Lumen design tokens.
+
+         This dictionary is theme independent: it holds geometry, type and
+         motion only. Colours live in Themes/Colors.*.xaml and are swapped at
+         runtime by ThemeService, so every style in Themes/Controls/* must
+         reference colours with {DynamicResource} and never hard-code them.
+
+         Conventions
+         ============
+         Space.*   spacing scale, expressed as Thickness
+         Radius.*  corner radii, expressed as CornerRadius
+         Font.*    type ramp, expressed as double
+         Icon.*    icon glyph sizes, expressed as double
+         Control.* control heights, expressed as double
+         Border.*  border widths, expressed as double
+         Motion.*  animation durations
+         ===================================================================== -->
+
+    <!-- ===================== Spacing scale ===================== -->
+    <!-- 4 / 8 / 12 / 16 / 24 / 32 -->
+
+    <Thickness x:Key="Space.Xs">4</Thickness>
+    <Thickness x:Key="Space.Sm">8</Thickness>
+    <Thickness x:Key="Space.Md">12</Thickness>
+    <Thickness x:Key="Space.Lg">16</Thickness>
+    <Thickness x:Key="Space.Xl">24</Thickness>
+    <Thickness x:Key="Space.Xxl">32</Thickness>
+
+    <!-- Frequently used asymmetric composites, so that no style has to
+         hard-code a margin such as "0,12,0,0". -->
+
+    <Thickness x:Key="Space.Top.Md">0,12,0,0</Thickness>
+    <Thickness x:Key="Space.Top.Sm">0,8,0,0</Thickness>
+    <Thickness x:Key="Space.Bottom.Md">0,0,0,12</Thickness>
+    <Thickness x:Key="Space.Bottom.Xs">0,0,0,4</Thickness>
+    <Thickness x:Key="Space.Vertical.Md">0,12</Thickness>
+    <Thickness x:Key="Space.Horizontal.Sm">8,0</Thickness>
+    <Thickness x:Key="Space.Horizontal.Md">12,0</Thickness>
+    <Thickness x:Key="Space.Horizontal.Lg">16,0</Thickness>
+    <Thickness x:Key="Space.Horizontal.Xl">24,0</Thickness>
+    <Thickness x:Key="Space.Inset.Xs">8,2</Thickness>
+    <Thickness x:Key="Space.Inset.Sm">8,4</Thickness>
+    <Thickness x:Key="Space.Inset.Tight">7,1</Thickness>
+    <Thickness x:Key="Space.Pill">12,7</Thickness>
+    <Thickness x:Key="Space.ListItem">12,10</Thickness>
+    <Thickness x:Key="Space.Nav">15,0,12,0</Thickness>
+
+    <!-- ===================== Corner radii ===================== -->
+    <!-- 4 / 6 / 8 / 12 / 16 -->
+
+    <CornerRadius x:Key="Radius.Xs">4</CornerRadius>
+    <CornerRadius x:Key="Radius.Sm">6</CornerRadius>
+    <CornerRadius x:Key="Radius.Md">8</CornerRadius>
+    <CornerRadius x:Key="Radius.Lg">12</CornerRadius>
+    <CornerRadius x:Key="Radius.Xl">16</CornerRadius>
+
+    <!-- Radius used by every interactive surface (buttons, inputs, list
+         items). The focus ring radius is derived from it: see Radius.Focus. -->
+    <CornerRadius x:Key="Radius.Control">8</CornerRadius>
+
+    <!-- Radius of the focus ring. The ring is drawn 3px outside the control
+         (Focus.Ring.Offset), so its own radius has to grow by the same amount
+         for the ring to hug the rounded corner instead of clipping into it. -->
+    <CornerRadius x:Key="Radius.Focus">11</CornerRadius>
+
+    <!-- Fully rounded, for chips and badges. -->
+    <CornerRadius x:Key="Radius.Pill">99</CornerRadius>
+
+    <!-- ===================== Type ramp ===================== -->
+    <!-- 11 / 12 / 14 / 18 / 24 / 32 -->
+
+    <sys:Double x:Key="Font.Size.Micro">11</sys:Double>
+    <sys:Double x:Key="Font.Size.Small">12</sys:Double>
+    <sys:Double x:Key="Font.Size.Body">14</sys:Double>
+    <sys:Double x:Key="Font.Size.Large">18</sys:Double>
+    <sys:Double x:Key="Font.Size.Display">24</sys:Double>
+    <sys:Double x:Key="Font.Size.Hero">32</sys:Double>
+
+    <!-- ===================== Icon sizes ===================== -->
+    <!-- 16 / 20 / 24 / 32 / 40 -->
+
+    <sys:Double x:Key="Icon.Size.Small">16</sys:Double>
+    <sys:Double x:Key="Icon.Size.Medium">20</sys:Double>
+    <sys:Double x:Key="Icon.Size.Large">24</sys:Double>
+    <sys:Double x:Key="Icon.Size.XLarge">32</sys:Double>
+    <sys:Double x:Key="Icon.Size.Hero">40</sys:Double>
+
+    <!-- ===================== Control heights ===================== -->
+    <!-- 28 / 32 / 38 / 44 -->
+
+    <sys:Double x:Key="Control.Height.Small">28</sys:Double>
+    <sys:Double x:Key="Control.Height.Medium">32</sys:Double>
+    <sys:Double x:Key="Control.Height.Default">38</sys:Double>
+    <sys:Double x:Key="Control.Height.Large">44</sys:Double>
+
+    <!-- ===================== Border widths ===================== -->
+
+    <sys:Double x:Key="Border.Width.Hairline">1</sys:Double>
+    <sys:Double x:Key="Border.Width.Thick">2</sys:Double>
+
+    <!-- ===================== Focus ring ===================== -->
+
+    <Thickness x:Key="Focus.Ring.Thickness">2</Thickness>
+    <sys:Double x:Key="Focus.Ring.Offset">3</sys:Double>
+    <Thickness x:Key="Focus.Ring.Margin">-3</Thickness>
+
+    <!-- ===================== Motion ===================== -->
+    <!-- 120 / 180 / 240 ms.
+         The TimeSpan tokens are the canonical values and are the ones to use
+         from code (DispatcherTimer delays, animation helpers). The matching
+         ".Duration" tokens are the WPF-native Duration and are the ones to
+         use inside Storyboards, because a bare TimeSpan cannot be assigned
+         to Timeline.Duration. -->
+
+    <sys:TimeSpan x:Key="Motion.Fast">0:0:0.120</sys:TimeSpan>
+    <sys:TimeSpan x:Key="Motion.Normal">0:0:0.180</sys:TimeSpan>
+    <sys:TimeSpan x:Key="Motion.Slow">0:0:0.240</sys:TimeSpan>
+
+    <Duration x:Key="Motion.Fast.Duration">0:0:0.120</Duration>
+    <Duration x:Key="Motion.Normal.Duration">0:0:0.180</Duration>
+    <Duration x:Key="Motion.Slow.Duration">0:0:0.240</Duration>
+
+</ResourceDictionary>

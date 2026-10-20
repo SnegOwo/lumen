@@ -1,0 +1,214 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- =====================================================================
+         Buttons.
+
+         ButtonBase carries the shared geometry (height, radius, focus ring)
+         and the disabled state. Every variant adds its own colours and its
+         own hover / pressed feedback.
+
+         Removed in this revision: GhostButton and IconButtonOnDark, both of
+         which were unreferenced anywhere in the app.
+         ===================================================================== -->
+
+    <!-- ===================== Base ===================== -->
+
+    <Style x:Key="ButtonBase" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource App.TextPrimary}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="{StaticResource Border.Width.Hairline}" />
+        <Setter Property="Padding" Value="{StaticResource Space.Horizontal.Lg}" />
+        <Setter Property="Height" Value="{StaticResource Control.Height.Default}" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="FontSize" Value="{StaticResource Font.Size.Body}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource Radius.Control}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ===================== Variants ===================== -->
+
+    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource ButtonBase}">
+        <Setter Property="Background" Value="{DynamicResource Accent.Primary}" />
+        <Setter Property="Foreground" Value="{DynamicResource Accent.OnPrimary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Accent.Primary}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Accent.PrimaryHover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent.PrimaryHover}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Accent.PrimaryPressed}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent.PrimaryPressed}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource ButtonBase}">
+        <Setter Property="Background" Value="{DynamicResource App.Surface}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.TextPrimary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource App.BorderStrong}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.SurfaceHover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.BorderStrong}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.SurfacePressed}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource App.BorderStrong}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource ButtonBase}">
+        <Setter Property="Background" Value="{DynamicResource Danger.Primary}" />
+        <Setter Property="Foreground" Value="{DynamicResource Danger.OnPrimary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Danger.Primary}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Danger.PrimaryHover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Danger.PrimaryHover}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Danger.PrimaryPressed}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Danger.PrimaryPressed}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="DangerOutlineButton" TargetType="Button" BasedOn="{StaticResource ButtonBase}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Danger.Text}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Danger.SoftBorder}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Danger.Soft}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Danger.Soft}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Danger.Text}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Square icon-only button. -->
+    <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource ButtonBase}">
+        <Setter Property="Width" Value="{StaticResource Control.Height.Medium}" />
+        <Setter Property="Height" Value="{StaticResource Control.Height.Medium}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource App.TextSecondary}" />
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+        <Setter Property="FontSize" Value="{StaticResource Icon.Size.Small}" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.SurfaceHover}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.TextPrimary}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.SurfacePressed}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.TextPrimary}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Inline text button that behaves like a hyperlink. Deliberately shorter
+         than the control-height scale: it has to sit on a text baseline. -->
+    <Style x:Key="LinkButton" TargetType="Button" BasedOn="{StaticResource ButtonBase}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Accent.Text}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="FontSize" Value="{StaticResource Font.Size.Body}" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Opacity" Value="0.78" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Opacity" Value="0.6" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ===================== Sidebar navigation ===================== -->
+
+    <Style x:Key="NavButton" TargetType="RadioButton">
+        <Setter Property="Height" Value="{StaticResource Control.Height.Large}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Sidebar.Text}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Root" Background="Transparent" CornerRadius="{StaticResource Radius.Control}" SnapsToDevicePixels="True">
+                        <Grid>
+                            <Border x:Name="Indicator" Width="3" Height="20" CornerRadius="{StaticResource Radius.Xs}"
+                                    HorizontalAlignment="Left"
+                                    Background="{DynamicResource Sidebar.Accent}"
+                                    Opacity="0" />
+                            <ContentPresenter Margin="15,0,12,0"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Sidebar.Hover}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Sidebar.Hover}" />
+                            <Setter TargetName="Root" Property="Opacity" Value="0.85" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Sidebar.Selected}" />
+                            <Setter TargetName="Root" Property="Opacity" Value="1" />
+                            <Setter TargetName="Indicator" Property="Opacity" Value="1" />
+                            <Setter Property="Foreground" Value="{DynamicResource Sidebar.SelectedText}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

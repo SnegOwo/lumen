@@ -21,7 +21,20 @@ public sealed class QuarantineManifest
 /// </summary>
 public sealed class QuarantineService : IDisposable
 {
-    private const int KeySize = 32;
+    /// <summary>
+    /// How long <see cref="Dispose"/> waits for running operations before it leaves the
+    /// semaphore alone instead of disposing it under a live waiter.
+    /// </summary>
+    private const int DisposeGraceMilliseconds = 500;
+
+    /// <summary>
+    /// A partially written vault file older than this is left over from an interrupted
+    /// run and can be removed. A younger one may still be in flight.
+    /// </summary>
+    private static readonly TimeSpan StalePartAge = TimeSpan.FromMinutes(5);
+
+    private const string DisposedMessage = "The quarantine service has already been shut down.";
+
     private readonly string _directory;
     private readonly ISecretProtector _protector;
     private readonly IClock _clock;
@@ -32,7 +45,17 @@ public sealed class QuarantineService : IDisposable
     private QuarantineManifest _manifest;
     private bool _readOnly;
     private bool _disposed;
+    private int _inflight;
 
+    /// <summary>
+    /// Opens the encrypted vault. The index is read once; a vault that cannot be read
+    /// completely stays read-only so that no record is lost.
+    /// </summary>
+    /// <param name="quarantineDirectory">Folder that holds the encrypted vault files.</param>
+    /// <param name="manifestPath">File that holds the index of the vault.</param>
+    /// <param name="protector">Protects the encryption keys, for example with DPAPI.</param>
+    /// <param name="clock">Clock used for the timestamps in the index.</param>
+    /// <param name="log">Log for diagnostics. File contents are never written to it.</param>
     public QuarantineService(
         string quarantineDirectory,
         string manifestPath,
@@ -59,13 +82,19 @@ public sealed class QuarantineService : IDisposable
                 "The quarantine index was written by a newer version of Lumen and is read-only.");
         }
 
-        if (_manifest.Items.Any(item => !IsValidItem(item)))
+        var broken = _manifest.Items.Where(item => !IsValidItem(item)).ToArray();
+        if (broken.Length > 0)
         {
             _readOnly = true;
             LoadWarning = Combine(
                 LoadWarning,
-                "One or more quarantine records are incomplete. The vault is read-only to avoid data loss.");
+                $"Quarantine record(s) {DescribeBrokenItems(broken)} are incomplete, so the vault is read-only to avoid data loss.");
         }
+
+        // A vault file that was never finished is not a recoverable copy of anything, so
+        // old leftovers are cleaned up. Fresh ones may belong to a quarantine that is
+        // still running and are left alone.
+        CleanupStalePartFiles();
 
         if (LoadWarning is not null)
         {
@@ -79,33 +108,60 @@ public sealed class QuarantineService : IDisposable
         }
     }
 
+    /// <summary>Folder that holds the encrypted vault files.</summary>
     public string DirectoryPath => _directory;
+
+    /// <summary>
+    /// Set when the vault could not be read completely. It explains what the user has to
+    /// do about it, for example which record is broken.
+    /// </summary>
     public string? LoadWarning { get; }
 
+    /// <summary>
+    /// The records in the vault, newest first. Empty when the service is closed.
+    /// </summary>
     public IReadOnlyList<QuarantineItem> GetItems()
     {
         lock (_sync)
         {
+            if (_disposed) return [];
             return _manifest.Items
                 .OrderByDescending(item => item.QuarantinedUtc)
                 .ToArray();
         }
     }
 
+    /// <summary>
+    /// Looks up a single record. Returns null when the record is unknown or the service
+    /// is closed.
+    /// </summary>
     public QuarantineItem? GetItem(string id)
     {
         lock (_sync)
         {
+            if (_disposed) return null;
             return _manifest.Items.FirstOrDefault(item =>
                 string.Equals(item.Id, id, StringComparison.OrdinalIgnoreCase));
         }
     }
 
+    /// <summary>
+    /// Copies a file into the encrypted vault and, when the copy provably matches what was
+    /// inspected, removes the original. The original is only removed after the encrypted
+    /// copy and its index entry exist; a failure at any point leaves the original alone
+    /// and removes the partial copy.
+    /// </summary>
+    /// <param name="request">The file, the finding it belongs to and the expected hash.</param>
+    /// <param name="progress">Reports the number of bytes copied so far.</param>
+    /// <param name="cancellationToken">Cancels the copy. The original is left untouched.</param>
     public async Task<QuarantineResult> QuarantineAsync(
         QuarantineRequest request,
         IProgress<long>? progress,
         CancellationToken cancellationToken)
     {
+        if (!TryBeginOperation())
+            return new QuarantineResult(QuarantineStatus.Failed, null, DisposedMessage, false);
+
         var acquired = false;
         byte[]? aesKey = null;
         byte[]? macKey = null;
@@ -144,7 +200,24 @@ public sealed class QuarantineService : IDisposable
             if (PathRules.IsReparsePoint(attributes))
                 return new QuarantineResult(QuarantineStatus.Failed, null, "Symbolic links and other reparse points are not quarantined.", false);
 
+            // A hash that was supplied but cannot be parsed must not be treated as "no
+            // expectation at all": that would quietly turn verification off.
             var expected = NormalizeHash(request.ExpectedSha256);
+            if (expected is null && !string.IsNullOrWhiteSpace(request.ExpectedSha256))
+            {
+                return new QuarantineResult(
+                    QuarantineStatus.Failed,
+                    null,
+                    "The expected SHA-256 hash is not a valid 64-character hash, so the file was not quarantined. The original file was not changed.",
+                    false);
+            }
+
+            // Remember what the file looked like so that a restore can put it back.
+            var info = new FileInfo(fullPath);
+            var metadata = CaptureMetadata(attributes, info);
+            var sourceLength = info.Length;
+            var sourceLastWriteUtc = info.LastWriteTimeUtc;
+
             var currentHash = await Task.Run(
                 () => HashUtil.Sha256File(fullPath, cancellationToken),
                 cancellationToken).ConfigureAwait(false);
@@ -163,9 +236,31 @@ public sealed class QuarantineService : IDisposable
             tempPath = Path.Combine(_directory, id + ".qbin.part");
             var finalPath = Path.Combine(_directory, vaultFileName);
 
-            aesKey = RandomNumberGenerator.GetBytes(KeySize);
-            macKey = RandomNumberGenerator.GetBytes(KeySize);
+            aesKey = RandomNumberGenerator.GetBytes(VaultCrypto.AesKeySize);
+            macKey = RandomNumberGenerator.GetBytes(VaultCrypto.AesKeySize);
             var iv = RandomNumberGenerator.GetBytes(16);
+
+            // The keys are protected before anything is written into the vault. If the
+            // key store is unavailable the file is never copied, because an encrypted
+            // file whose key was lost cannot be listed or recovered by anyone.
+            string protectedKey;
+            string protectedMacKey;
+            try
+            {
+                protectedKey = Convert.ToBase64String(
+                    _protector.Protect(aesKey, Entropy(id, "aes")));
+                protectedMacKey = Convert.ToBase64String(
+                    _protector.Protect(macKey, Entropy(id, "mac")));
+            }
+            catch (Exception ex)
+            {
+                _log.Error("Quarantine", "The quarantine keys could not be protected; nothing was quarantined.", ex);
+                return new QuarantineResult(
+                    QuarantineStatus.Failed,
+                    null,
+                    "The quarantine keys could not be protected, so the file was not quarantined. The original file was not changed.",
+                    false);
+            }
 
             var encrypted = await VaultCrypto.EncryptFileAsync(
                 fullPath,
@@ -174,6 +269,18 @@ public sealed class QuarantineService : IDisposable
                 iv,
                 progress,
                 cancellationToken).ConfigureAwait(false);
+
+            // The copy in the vault must be the same content that was hashed. If it is
+            // not, the file changed while it was being read and the original must not
+            // be deleted: the vault would hold a different version than the disk.
+            if (!HashEquals(currentHash, encrypted.Sha256))
+            {
+                return new QuarantineResult(
+                    QuarantineStatus.ChangedSinceScan,
+                    null,
+                    "The file changed while it was being quarantined. It was not modified.",
+                    false);
+            }
 
             if (expected is not null && !HashEquals(expected, encrypted.Sha256) && !request.AllowChangedFile)
             {
@@ -185,9 +292,6 @@ public sealed class QuarantineService : IDisposable
             }
 
             var mac = await VaultCrypto.ComputeHmacAsync(tempPath, macKey, cancellationToken).ConfigureAwait(false);
-
-            File.Move(tempPath, finalPath);
-            tempPath = null;
 
             var item = new QuarantineItem
             {
@@ -202,18 +306,21 @@ public sealed class QuarantineService : IDisposable
                 FindingDetail = request.FindingDetail,
                 SourceScanId = request.SourceScanId,
                 VaultFileName = vaultFileName,
-                ProtectedKey = Convert.ToBase64String(
-                    _protector.Protect(aesKey, Entropy(id, "aes"))),
-                ProtectedMacKey = Convert.ToBase64String(
-                    _protector.Protect(macKey, Entropy(id, "mac"))),
+                ProtectedKey = protectedKey,
+                ProtectedMacKey = protectedMacKey,
                 Mac = mac,
-                Iv = Convert.ToBase64String(iv)
+                Iv = Convert.ToBase64String(iv),
+                Metadata = metadata
             };
 
-            lock (_sync) _manifest.Items.Add(item);
+            // The vault file only gets its final name once everything it needs is ready.
+            // From here on a failure removes it again, so no unlistable file is left.
+            File.Move(tempPath, finalPath);
+            tempPath = null;
 
             try
             {
+                lock (_sync) _manifest.Items.Add(item);
                 SaveManifest();
             }
             catch (Exception ex)
@@ -230,16 +337,36 @@ public sealed class QuarantineService : IDisposable
 
             var originalRemoved = false;
             string? note = null;
-            try
+
+            if (!File.Exists(fullPath))
             {
-                File.Delete(fullPath);
+                // Something else already removed the original; there is nothing left to
+                // delete and the encrypted copy is the only remaining copy.
                 originalRemoved = true;
             }
-            catch (Exception ex)
+            else if (!SourceMatchesSnapshot(fullPath, sourceLength, sourceLastWriteUtc))
             {
-                note = "The encrypted copy is preserved, but the original could not be removed. Close any program using it and delete it manually.";
-                _log.Warn("Quarantine", "The original file could not be removed after quarantine.", ex);
+                // The file changed after it was copied. Deleting it now would remove
+                // content that is not in the vault, so it is left in place.
+                note = "The file changed while it was being quarantined, so the original was left in place. The encrypted copy in the vault matches the content Lumen inspected.";
+                _log.Warn("Quarantine", "The original file changed after it was copied and was not deleted.", null);
+            }
+            else
+            {
+                try
+                {
+                    DeleteOriginal(fullPath, attributes);
+                    originalRemoved = true;
+                }
+                catch (Exception ex)
+                {
+                    note = "The encrypted copy is preserved, but the original could not be removed. Close any program using it and delete it manually.";
+                    _log.Warn("Quarantine", "The original file could not be removed after quarantine.", ex);
+                }
+            }
 
+            if (note is not null)
+            {
                 lock (_sync)
                 {
                     var index = _manifest.Items.FindIndex(candidate => candidate.Id == id);
@@ -280,6 +407,10 @@ public sealed class QuarantineService : IDisposable
                 "Quarantine was cancelled. The original file was not changed.",
                 false);
         }
+        catch (ObjectDisposedException)
+        {
+            return new QuarantineResult(QuarantineStatus.Failed, null, DisposedMessage, false);
+        }
         catch (UnauthorizedAccessException ex)
         {
             _log.Error("Quarantine", "Access was denied while creating the encrypted copy.", ex);
@@ -312,12 +443,23 @@ public sealed class QuarantineService : IDisposable
             if (tempPath is not null) DeleteQuietly(tempPath);
             if (aesKey is not null) CryptographicOperations.ZeroMemory(aesKey);
             if (macKey is not null) CryptographicOperations.ZeroMemory(macKey);
-            if (acquired) _mutex.Release();
+            if (acquired) ReleaseMutex();
+            EndOperation();
         }
     }
 
+    /// <summary>
+    /// Decrypts a quarantined file back to disk. The copy is verified against the hash
+    /// that was recorded at quarantine time before anything is written, and the original
+    /// timestamps and attributes are put back. Protected system locations are refused.
+    /// </summary>
+    /// <param name="request">The record to restore and where to put it.</param>
+    /// <param name="cancellationToken">Cancels the restore. Nothing is written.</param>
     public async Task<RestoreResult> RestoreAsync(RestoreRequest request, CancellationToken cancellationToken)
     {
+        if (!TryBeginOperation())
+            return new RestoreResult(RestoreStatus.Failed, null, DisposedMessage);
+
         var acquired = false;
         string? tempPath = null;
         byte[]? aesKey = null;
@@ -355,6 +497,17 @@ public sealed class QuarantineService : IDisposable
             catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
             {
                 return new RestoreResult(RestoreStatus.Failed, null, "The restore destination is not a valid path.");
+            }
+
+            // Lumen does not write into Windows or Program Files. A restore there is
+            // refused so the product can never be used to place a file in a protected
+            // system location.
+            if (PathRules.IsSystemCritical(fullDestination))
+            {
+                return new RestoreResult(
+                    RestoreStatus.DestinationProtected,
+                    null,
+                    "Lumen does not write to protected system locations. Choose a different folder for the restored file.");
             }
 
             if (Directory.Exists(fullDestination))
@@ -420,6 +573,10 @@ public sealed class QuarantineService : IDisposable
                     "Windows could not write the restored file. It may be open in another program.");
             }
 
+            // Give the file back the timestamps and attributes it had before it was
+            // quarantined, so a restored file does not look freshly created.
+            ApplyOriginalMetadata(item, fullDestination);
+
             var removed = false;
             lock (_sync)
             {
@@ -463,6 +620,10 @@ public sealed class QuarantineService : IDisposable
         {
             return new RestoreResult(RestoreStatus.Cancelled, null, "Restore was cancelled. Nothing was written to the destination.");
         }
+        catch (ObjectDisposedException)
+        {
+            return new RestoreResult(RestoreStatus.Failed, null, DisposedMessage);
+        }
         catch (CryptographicException ex)
         {
             _log.Error("Quarantine", "The quarantine item could not be decrypted.", ex);
@@ -483,12 +644,22 @@ public sealed class QuarantineService : IDisposable
             if (tempPath is not null) DeleteQuietly(tempPath);
             if (aesKey is not null) CryptographicOperations.ZeroMemory(aesKey);
             if (macKey is not null) CryptographicOperations.ZeroMemory(macKey);
-            if (acquired) _mutex.Release();
+            if (acquired) ReleaseMutex();
+            EndOperation();
         }
     }
 
+    /// <summary>
+    /// Removes a record and its encrypted file from the vault. The caller is responsible
+    /// for asking the user first; this service never deletes without that confirmation.
+    /// </summary>
+    /// <param name="id">Id of the record to remove.</param>
+    /// <param name="cancellationToken">Cancels the deletion. Nothing is deleted.</param>
     public async Task<DeleteResult> DeleteAsync(string id, CancellationToken cancellationToken)
     {
+        if (!TryBeginOperation())
+            return new DeleteResult(false, DisposedMessage);
+
         var acquired = false;
         try
         {
@@ -545,6 +716,10 @@ public sealed class QuarantineService : IDisposable
         {
             return new DeleteResult(false, "Deletion was cancelled. Nothing was deleted.");
         }
+        catch (ObjectDisposedException)
+        {
+            return new DeleteResult(false, DisposedMessage);
+        }
         catch (UnauthorizedAccessException ex)
         {
             _log.Error("Quarantine", "Access was denied while deleting a quarantine item.", ex);
@@ -557,7 +732,8 @@ public sealed class QuarantineService : IDisposable
         }
         finally
         {
-            if (acquired) _mutex.Release();
+            if (acquired) ReleaseMutex();
+            EndOperation();
         }
     }
 
@@ -607,15 +783,148 @@ public sealed class QuarantineService : IDisposable
         return string.Equals(item.VaultFileName, item.Id + ".qbin", StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Counts the encrypted files in the vault, including partially written ones. They are
+    /// reported to the user because a file that is not in the index cannot be restored.
+    /// </summary>
     private int CountVaultFiles()
     {
         try
         {
-            return Directory.EnumerateFiles(_directory, "*.qbin", SearchOption.TopDirectoryOnly).Count();
+            return Directory.EnumerateFiles(_directory, "*.qbin*", SearchOption.TopDirectoryOnly).Count();
         }
         catch
         {
             return 0;
+        }
+    }
+
+    /// <summary>
+    /// Removes vault files that were never finished. Only old ones are removed, so a
+    /// quarantine that is currently running is never interrupted.
+    /// </summary>
+    private void CleanupStalePartFiles()
+    {
+        try
+        {
+            var cutoff = DateTime.UtcNow - StalePartAge;
+            foreach (var path in Directory.EnumerateFiles(_directory, "*.qbin.part", SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    var info = new FileInfo(path);
+                    if (info.LastWriteTimeUtc >= cutoff) continue;
+                    File.Delete(path);
+                }
+                catch
+                {
+                    // Best effort: a leftover part file is harmless, it is only clutter.
+                }
+            }
+        }
+        catch
+        {
+            // Best effort cleanup; a failure here must not stop Lumen from starting.
+        }
+    }
+
+    /// <summary>
+    /// Names the records that made the vault read-only so the user can tell which entry
+    /// needs attention instead of only being told that something is wrong.
+    /// </summary>
+    private static string DescribeBrokenItems(IReadOnlyList<QuarantineItem> broken)
+    {
+        var names = broken.Take(3).Select(DescribeItem).ToArray();
+        var listed = string.Join(", ", names);
+        return broken.Count > names.Length
+            ? $"{listed} (and {broken.Count - names.Length} more)"
+            : listed;
+    }
+
+    private static string DescribeItem(QuarantineItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.Id)) return item.Id;
+        if (!string.IsNullOrWhiteSpace(item.VaultFileName)) return item.VaultFileName;
+        if (!string.IsNullOrWhiteSpace(item.OriginalPath)) return item.OriginalPath;
+        return "with an unknown id";
+    }
+
+    /// <summary>
+    /// Records what the original file looked like so that a restore can reproduce it.
+    /// </summary>
+    private static QuarantinedFileMetadata CaptureMetadata(FileAttributes attributes, FileInfo info)
+    {
+        return new QuarantinedFileMetadata
+        {
+            Attributes = attributes,
+            LastWriteTimeUtc = new DateTimeOffset(DateTime.SpecifyKind(info.LastWriteTimeUtc, DateTimeKind.Utc)),
+            CreationTimeUtc = new DateTimeOffset(DateTime.SpecifyKind(info.CreationTimeUtc, DateTimeKind.Utc))
+        };
+    }
+
+    /// <summary>
+    /// Checks that the file on disk is still the file that was copied into the vault.
+    /// The length and the last write time are compared; a different value means the file
+    /// was written to after Lumen read it.
+    /// </summary>
+    private static bool SourceMatchesSnapshot(string path, long length, DateTime lastWriteUtc)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists) return false;
+            if (info.Length != length) return false;
+            return File.GetLastWriteTimeUtc(path) == lastWriteUtc;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Removes the original file after it has been copied into the vault. Windows refuses
+    /// to delete a read-only file, so that one flag is cleared first; the original value
+    /// is kept in the manifest and restored with the file.
+    /// </summary>
+    private static void DeleteOriginal(string path, FileAttributes attributes)
+    {
+        if ((attributes & FileAttributes.ReadOnly) != 0)
+        {
+            try
+            {
+                File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
+            }
+            catch
+            {
+                // The delete below reports the real problem if it still fails.
+            }
+        }
+
+        File.Delete(path);
+    }
+
+    /// <summary>
+    /// Puts the original timestamps and attributes back on a restored file. The read-only
+    /// flag is applied last so it cannot block writing the timestamps.
+    /// </summary>
+    private void ApplyOriginalMetadata(QuarantineItem item, string path)
+    {
+        var metadata = item.Metadata;
+        if (metadata is null) return;
+
+        try
+        {
+            // A reparse point is never restored: the copy is a plain file.
+            var attributes = metadata.Attributes & ~FileAttributes.ReparsePoint;
+            File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
+            File.SetLastWriteTimeUtc(path, metadata.LastWriteTimeUtc.UtcDateTime);
+            File.SetCreationTimeUtc(path, metadata.CreationTimeUtc.UtcDateTime);
+            File.SetAttributes(path, attributes);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn("Quarantine", "The restored file kept new timestamps because the original metadata could not be applied.", ex);
         }
     }
 
@@ -654,10 +963,79 @@ public sealed class QuarantineService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Marks the service as closed and records that an operation is running. Operations
+    /// that start after this point are refused with a clean result instead of touching a
+    /// disposed semaphore.
+    /// </summary>
+    private bool TryBeginOperation()
+    {
+        lock (_sync)
+        {
+            if (_disposed) return false;
+            _inflight++;
+            return true;
+        }
+    }
+
+    private void EndOperation()
+    {
+        lock (_sync)
+        {
+            if (_inflight > 0) _inflight--;
+        }
+    }
+
+    /// <summary>
+    /// Releases the mutex without letting a disposal race turn into an exception that
+    /// hides the real result of the operation.
+    /// </summary>
+    private void ReleaseMutex()
+    {
+        try
+        {
+            _mutex.Release();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The service was disposed while the operation was running.
+        }
+    }
+
+    /// <summary>
+    /// Shuts the service down. Running operations are given a short moment to finish; if
+    /// one is still running the mutex is left to the garbage collector rather than being
+    /// disposed under a live waiter.
+    /// </summary>
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-        _mutex.Dispose();
+        lock (_sync)
+        {
+            if (_disposed) return;
+            _disposed = true;
+        }
+
+        var deadline = Environment.TickCount64 + DisposeGraceMilliseconds;
+        while (true)
+        {
+            int running;
+            lock (_sync) running = _inflight;
+            if (running == 0) break;
+            if (Environment.TickCount64 >= deadline) break;
+            Thread.Sleep(15);
+        }
+
+        int remaining;
+        lock (_sync) remaining = _inflight;
+        if (remaining > 0) return;
+
+        try
+        {
+            _mutex.Dispose();
+        }
+        catch
+        {
+            // Disposing the mutex must never throw during shutdown.
+        }
     }
 }

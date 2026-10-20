@@ -17,7 +17,7 @@ public sealed class HistoryStore
     public HistoryStore(AppPaths paths, ILog log, int maxEntries = 200)
     {
         _log = log;
-        MaxEntries = Math.Max(10, maxEntries);
+        MaxEntries = Math.Max(1, maxEntries);
         _store = new JsonFileStore<HistoryFile>(paths.HistoryFile, log);
 
         var file = _store.Load(out var warning);
@@ -44,7 +44,12 @@ public sealed class HistoryStore
     {
         lock (_gate)
         {
-            _entries.Insert(0, entry);
+            // The list is kept newest first. Entries can arrive out of order (a scan that
+            // was started earlier can finish later), so the new entry is placed by its
+            // start time instead of always at the top.
+            var index = 0;
+            while (index < _entries.Count && _entries[index].StartedUtc >= entry.StartedUtc) index++;
+            _entries.Insert(index, entry);
             if (_entries.Count > MaxEntries) _entries.RemoveRange(MaxEntries, _entries.Count - MaxEntries);
             return SaveLocked();
         }

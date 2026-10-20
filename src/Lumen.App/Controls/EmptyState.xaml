@@ -22,7 +22,8 @@
                        FontSize="27"
                        Foreground="{DynamicResource Accent.Text}"
                        HorizontalAlignment="Center"
-                       VerticalAlignment="Center" />
+                       VerticalAlignment="Center"
+                       AutomationProperties.Name="" />
         </Border>
 
         <TextBlock Text="{Binding Title, ElementName=Root}"

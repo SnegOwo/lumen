@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Lumen.Core.Models;
 
 namespace Lumen.Core.Models;
@@ -40,7 +41,36 @@ public sealed record QuarantineItem
     /// <summary>Non-fatal note, for example that the original could not be removed.</summary>
     public string? Note { get; init; }
 
+    /// <summary>
+    /// Metadata captured from the original file so that a restore can put it back the way
+    /// the user remembers it. Absent in manifests written by older versions of Lumen, which
+    /// simply means "keep whatever timestamps the restored file gets".
+    /// </summary>
+    public QuarantinedFileMetadata? Metadata { get; init; }
+
+    /// <summary>
+    /// The file name of the original path. Derived on demand so it cannot go stale in the
+    /// manifest file on disk.
+    /// </summary>
+    [JsonIgnore]
     public string FileName => Path.GetFileName(OriginalPath);
+}
+
+/// <summary>
+/// The small amount of file metadata Lumen preserves across a quarantine so that a
+/// restore does not silently change a file. Access control lists are deliberately not
+/// captured: Lumen never manages permissions.
+/// </summary>
+public sealed record QuarantinedFileMetadata
+{
+    /// <summary>Windows file attributes such as ReadOnly, Hidden or System.</summary>
+    public FileAttributes Attributes { get; init; }
+
+    /// <summary>Last write time of the original file, in UTC.</summary>
+    public DateTimeOffset LastWriteTimeUtc { get; init; }
+
+    /// <summary>Creation time of the original file, in UTC.</summary>
+    public DateTimeOffset CreationTimeUtc { get; init; }
 }
 
 public enum QuarantineStatus
@@ -77,7 +107,13 @@ public enum RestoreStatus
     DestinationMissing,
     Corrupt,
     Failed,
-    Cancelled
+    Cancelled,
+
+    /// <summary>
+    /// The requested destination is inside a protected system location. Lumen does not
+    /// write to those folders, so the file was not restored.
+    /// </summary>
+    DestinationProtected
 }
 
 public sealed record RestoreResult(

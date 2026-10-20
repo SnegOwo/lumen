@@ -100,6 +100,83 @@ public sealed class ScanPlanner
             .ToArray();
     }
 
+    /// <summary>
+    /// Builds the folder list the real-time monitor should watch: the standard quick-scan
+    /// folders plus the folders the user configured. Nested duplicates are removed so a
+    /// folder is never watched twice, and a root that lies inside an excluded subtree is
+    /// left out entirely.
+    /// </summary>
+    /// <param name="userProfile">The profile whose Desktop, Documents and Downloads folders
+    /// are the default watch roots.</param>
+    /// <param name="extraWatchFolders">Additional folders the user wants watched. Missing or
+    /// malformed paths are ignored.</param>
+    /// <param name="excludedFolders">Folders whose subtree is skipped entirely.</param>
+    /// <returns>The watch roots in a stable order, without nested duplicates.</returns>
+    public static IReadOnlyList<string> RealtimeWatchFolders(
+        string userProfile,
+        IEnumerable<string>? extraWatchFolders = null,
+        IEnumerable<string>? excludedFolders = null)
+    {
+        var candidates = new List<string>(QuickFolders(userProfile));
+
+        if (extraWatchFolders is not null)
+        {
+            foreach (var folder in extraWatchFolders)
+            {
+                if (string.IsNullOrWhiteSpace(folder)) continue;
+                try
+                {
+                    candidates.Add(PathRules.NormalizeDirectory(folder));
+                }
+                catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+                {
+                    // A malformed path in the settings file is ignored rather than
+                    // preventing real-time protection from starting.
+                }
+            }
+        }
+
+        var exclusions = new List<string>();
+        if (excludedFolders is not null)
+        {
+            foreach (var folder in excludedFolders)
+            {
+                if (string.IsNullOrWhiteSpace(folder)) continue;
+                try
+                {
+                    var full = PathRules.NormalizeDirectory(folder);
+                    if (!exclusions.Contains(full, StringComparer.OrdinalIgnoreCase)) exclusions.Add(full);
+                }
+                catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+                {
+                    // A malformed exclusion rule is ignored rather than breaking monitoring.
+                }
+            }
+        }
+
+        var distinct = candidates
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(root => !exclusions.Any(excluded => PathRules.IsWithin(root, excluded)))
+            .OrderBy(root => root.Length)
+            .ToList();
+
+        var result = new List<string>();
+        foreach (var root in distinct)
+        {
+            var nested = false;
+            foreach (var parent in result)
+            {
+                if (!PathRules.IsWithin(root, parent)) continue;
+                nested = true;
+                break;
+            }
+
+            if (!nested) result.Add(root);
+        }
+
+        return result;
+    }
+
     private long InspectBytes =>
         Math.Clamp(
             (long)_settings.MaxInspectMegabytes * 1024L * 1024L,

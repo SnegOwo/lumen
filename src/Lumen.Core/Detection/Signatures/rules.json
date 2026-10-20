@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "sig.pe-header-in-document-file",
+      "title": "Executable header inside a document file",
+      "category": "Signature",
+      "confidence": "High",
+      "description": "A Windows executable header was found inside a file whose name suggests a document or a picture. Documents and pictures do not normally carry an executable header.",
+      "detail": "The bytes at the start of the file match a Windows executable header, but the file name has a document or image extension.",
+      "advice": "Treat the file as an executable, whatever it is called. Do not open it. Ask the sender where it came from, and scan it with a full antivirus product.",
+      "patterns": [
+        {
+          "kind": "hex",
+          "value": "4D 5A 90 00 03 00 00 00",
+          "caseSensitive": false,
+          "extensions": [
+            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods",
+            ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".ico",
+            ".txt", ".csv", ".rtf", ".md", ".log", ".json", ".xml", ".html", ".htm",
+            ".mp3", ".mp4", ".avi", ".mkv", ".wav"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sig.upx-packer-marker",
+      "title": "UPX packer marker",
+      "category": "Signature",
+      "confidence": "High",
+      "description": "The file contains the marker left by the UPX executable packer. Packed files are compressed on purpose, which makes them hard to read or review.",
+      "detail": "The UPX section marker was found in the file.",
+      "advice": "Packing is legitimate in some installers, so this is not proof of anything. If you did not expect a packed file, review it with a full antivirus product.",
+      "patterns": [
+        {
+          "kind": "ascii",
+          "value": "UPX!",
+          "caseSensitive": true
+        }
+      ]
+    },
+    {
+      "id": "sig.windows-script-host-reference",
+      "title": "Windows Script Host shell object",
+      "category": "Signature",
+      "confidence": "Medium",
+      "description": "The file mentions the Windows Script Host shell object, which is used to start other programs from a script.",
+      "detail": "A reference to the Windows Script Host shell object was found in the text.",
+      "advice": "Read the script and check what it starts. Administrative and installer scripts use this object as well.",
+      "patterns": [
+        {
+          "kind": "ascii",
+          "value": "WScript.Shell",
+          "caseSensitive": false
+        }
+      ]
+    },
+    {
+      "id": "sig.amsi-bypass-marker",
+      "title": "Antimalware scan interface bypass marker",
+      "category": "Signature",
+      "confidence": "High",
+      "description": "The file mentions the internal name of the antimalware scanning function. Legitimate software does not usually refer to it.",
+      "detail": "A reference to the antimalware scanning function was found in the text.",
+      "advice": "Review the file before running it. Software that refers to the antimalware scanning interface is worth a second look.",
+      "patterns": [
+        {
+          "kind": "ascii",
+          "value": "AmsiScanBuffer",
+          "caseSensitive": false
+        }
+      ]
+    },
+    {
+      "id": "sig.powershell-stealth-switch",
+      "title": "PowerShell started with concealment switches",
+      "category": "Signature",
+      "confidence": "Medium",
+      "description": "The file starts PowerShell together with a switch that hides the window or bypasses the execution policy.",
+      "detail": "PowerShell was found together with a concealment switch on the same text.",
+      "advice": "Read the command line. Administrators use these switches for scheduled tasks, so context matters.",
+      "patterns": [
+        {
+          "kind": "tokenGroups",
+          "value": "powershell,pwsh,powershell.exe,pwsh.exe|-w hidden,-windowstyle hidden,-ep bypass,-executionpolicy bypass,-encodedcommand,-enc ",
+          "caseSensitive": false,
+          "extensions": [
+            ".ps1", ".psm1", ".bat", ".cmd", ".vbs", ".js", ".wsf", ".hta", ".txt", ".reg"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sig.base64-decode-call",
+      "title": "Base64 decoding call",
+      "category": "Signature",
+      "confidence": "Medium",
+      "description": "The file decodes base64 data at runtime. That is a common way to hide the real content of a script.",
+      "detail": "A base64 decoding call was found in the text.",
+      "advice": "Decode the base64 text yourself and read it before running the script. Many tools do this, so this is a hint and not a verdict.",
+      "patterns": [
+        {
+          "kind": "ascii",
+          "value": "FromBase64String",
+          "caseSensitive": false,
+          "extensions": [
+            ".ps1", ".psm1", ".bat", ".cmd", ".vbs", ".js", ".wsf", ".hta", ".txt"
+          ]
+        }
+      ]
+    }
+  ]
+}

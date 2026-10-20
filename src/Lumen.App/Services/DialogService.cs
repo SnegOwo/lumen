@@ -31,7 +31,11 @@ public sealed class DialogService
             CancelText = cancelText,
             IsDanger = danger,
             Details = details,
-            Severity = danger ? MessageSeverity.Warning : MessageSeverity.Info
+            // A destructive confirmation must LOOK destructive. Previously this used the
+            // Warning severity, so a "delete permanently" prompt showed an amber
+            // information icon next to a red button, and the Danger severity could never
+            // be reached through Confirm at all.
+            Severity = danger ? MessageSeverity.Danger : MessageSeverity.Info
         });
 
         return result;
