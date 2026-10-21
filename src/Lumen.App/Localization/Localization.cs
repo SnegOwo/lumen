@@ -91,6 +91,19 @@ public static class Text
         $"Every {minutes} minute(s)",
         $"Toutes les {minutes} minute(s)");
 
+    /// <summary>The title of the message shown after a program was stopped.</summary>
+    public static string StopProcessDoneTitle => Pick("Program stopped", "Programme arrêté");
+
+    /// <summary>The body of the message shown after a program was stopped.</summary>
+    public static string StopProcessDoneBody(int count) => Pick(
+        count == 1 ? "1 program was stopped." : $"{count} programs were stopped.",
+        count == 1 ? "1 programme a été arrêté." : $"{count} programmes ont été arrêtés.");
+
+    /// <summary>The title of the message shown when a program could not be stopped.</summary>
+    public static string StopProcessFailedTitle => Pick(
+        "The program was not stopped",
+        "Le programme n'a pas été arrêté");
+
     /// <summary>Formats a count with the noun that fits the current language.</summary>
     public static string Count(long value, TextNoun noun)    {
         if (IsFrench)
@@ -650,7 +663,7 @@ public static class Text
     public static string ScanPhaseInspecting => Pick("Inspecting files…", "Inspection des fichiers…");
 
     /// <summary>The phase shown while the scan is wrapping up.</summary>
-    public static string ScanPhaseFinishing => Pick("Finishing…", "Finalisation…");
+    public static string ScanPhaseFinishing => Pick("Reticulating splines…", "Courbes de Bézier en cours…");
 
     /// <summary>The phase shown while the scan is being cancelled.</summary>
     public static string ScanPhaseCancelling => Pick("Cancelling…", "Annulation…");
@@ -1368,8 +1381,8 @@ public static class Text
 
     /// <summary>The body of the about card.</summary>
     public static string SettingsAboutBody => Pick(
-        "Lumen is a transparent, local file inspector. It runs on-demand scans and, when real-time protection is on, re-checks new and changed files in your watched folders while the app is open. It does not install a driver, monitor system folders, upload files, or change Microsoft Defender settings. Its rules are documented, so a clean result is not proof that a file is safe.",
-        "Lumen est un inspecteur de fichiers local et transparent. Il lance des analyses à la demande et, lorsque la surveillance en temps réel est active, réanalyse les fichiers nouveaux et modifiés de vos dossiers surveillés pendant que l'application est ouverte. Il n'installe aucun pilote, ne surveille pas les dossiers système, n'envoie aucun fichier et ne modifie pas les réglages de Microsoft Defender. Ses règles sont documentées : un résultat propre ne prouve pas qu'un fichier est sûr.");
+        "Lumen is a transparent, local file inspector. It runs on-demand scans and, when real-time protection is on, re-checks new and changed files in your watched folders while the app is open. It does not install a driver, monitor system folders, upload files, or change Microsoft Defender settings. Its rules are documented, so a clean result is not proof that a file is safe.  /// Written by an AI in an afternoon. The cat was not.",
+        "Lumen est un inspecteur de fichiers local et transparent. Il lance des analyses à la demande et, lorsque la surveillance en temps réel est active, réanalyse les fichiers nouveaux et modifiés de vos dossiers surveillés pendant que l'application est ouverte. Il n'installe aucun pilote, ne surveille pas les dossiers système, n'envoie aucun fichier et ne modifie pas les réglages de Microsoft Defender. Ses règles sont documentées : un résultat propre ne prouve pas qu'un fichier est sûr.  /// Écrit par une IA en un après-midi. Le chat, non.");
 
     /// <summary>The title of the restore-defaults confirmation.</summary>
     public static string SettingsResetTitle => Pick(

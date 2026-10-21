@@ -157,11 +157,8 @@ public sealed class EasterEggs : IDisposable
         var cat = new CatArt
         {
             Mood = CatMood.Alarmed,
-            Width = 90,
-            Height = 90,
-            Fur = new SolidColorBrush(Color.FromRgb(0x3A, 0x44, 0x5C)),
-            FurLight = new SolidColorBrush(Color.FromRgb(0x5A, 0x66, 0x80)),
-            Accent = new SolidColorBrush(Color.FromRgb(0x5E, 0xEA, 0xD4))
+            Width = 110,
+            Height = 110
         };
         cat.SetValue(System.Windows.Controls.Panel.ZIndexProperty, 9999);
 
@@ -220,10 +217,7 @@ public sealed class EasterEggs : IDisposable
             Width = 220,
             Height = 220,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 10, 0, 10),
-            Fur = new SolidColorBrush(Color.FromRgb(0x3A, 0x44, 0x5C)),
-            FurLight = new SolidColorBrush(Color.FromRgb(0x5A, 0x66, 0x80)),
-            Accent = new SolidColorBrush(Color.FromRgb(0xFB, 0xBF, 0x24))
+            Margin = new Thickness(0, 10, 0, 10)
         };
         stack.Children.Add(cat);
 

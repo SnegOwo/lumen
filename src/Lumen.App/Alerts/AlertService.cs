@@ -120,6 +120,36 @@ public sealed class AlertService
     public event EventHandler<string>? QuarantineRequested;
 
     /// <summary>
+    /// Raised when the user asks for the programs running the alerted file to be
+    /// stopped. The handler is expected to confirm the action with the remediation
+    /// engine, which keeps every safety rule.
+    /// </summary>
+    public event EventHandler<string>? StopProcessRequested;
+
+    /// <summary>
+    /// Lists the programs whose executable or loaded module is the flagged file.
+    /// A failure here must never stop the alert from appearing, so an empty list is
+    /// returned instead of an exception.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> FindRunningProcessesAsync(string filePath)
+    {
+        try
+        {
+            var matches = await _services.RealtimeKill.FindAsync(filePath, CancellationToken.None).ConfigureAwait(true);
+            return matches
+                .Select(match => match.Process.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (Exception ex)
+        {
+            _services.Log.Warn("Alert", "The programs using the flagged file could not be listed.", ex);
+            return [];
+        }
+    }
+
+    /// <summary>
     /// Raised when a detection was recorded but no alert window was shown.
     ///
     /// <para>
@@ -168,13 +198,13 @@ public sealed class AlertService
             return;
         }
 
-        RunOnUI(() => Present(detection, fileName, ruleTitle, confidence, settings, origin, demonstration));
+        RunOnUI(() => { _ = PresentAsync(detection, fileName, ruleTitle, confidence, settings, origin, demonstration); });
     }
 
     /// <summary>
     /// Puts the window on the screen. Only one alert window may exist at a time.
     /// </summary>
-    private void Present(
+    private async Task PresentAsync(
         ScanDetection detection,
         string fileName,
         string ruleTitle,
@@ -207,17 +237,29 @@ public sealed class AlertService
 
             if (settings.DetectionAlertSoundEnabled) PlayAlertSound();
 
+            // Which programs are running this file? It is the most useful thing the
+            // alert can say, and it is what makes the "stop it" button possible.
+            var running = await FindRunningProcessesAsync(detection.FilePath).ConfigureAwait(true);
+
             var window = new DetectionAlertWindow(
                 BuildStrings(settings.Language),
                 DisplayText.Sanitize(fileName, 120),
                 DisplayText.Sanitize(ruleTitle, 120),
                 DisplayText.Sanitize(confidence, 40),
-                settings.DetectionAlertCatEnabled);
+                settings.DetectionAlertCatEnabled,
+                running,
+                settings.RemediationEnabled);
 
             window.QuarantineRequested += (_, _) =>
             {
                 var path = detection.FilePath;
                 RunOnUI(() => QuarantineRequested?.Invoke(this, path));
+            };
+
+            window.StopProcessRequested += (_, _) =>
+            {
+                var path = detection.FilePath;
+                RunOnUI(() => StopProcessRequested?.Invoke(this, path));
             };
 
             window.Closed += (_, _) => Interlocked.Exchange(ref _alertWindowOpen, 0);
@@ -386,6 +428,10 @@ public sealed class AlertService
                 RuleLabel = "Règle",
                 ConfidenceLabel = "Confiance",
                 NothingChanged = "Rien n'a été modifié.",
+                StopProcess = "Arrêter le programme",
+                UsingProcess = "{0} programme(s) exécutent ce fichier.",
+                UsingProcessOne = "En cours d'exécution : {0}",
+                StopNeedsRemediation = "Activez la remédiation dans les réglages pour que Lumen puisse les arrêter.",
                 QuietTitle = "Détection enregistrée",
                 QuietDetailOne = "1 détection a été enregistrée sans alerte.",
                 QuietDetailMany = "{0} détections ont été enregistrées sans alerte."
@@ -400,6 +446,10 @@ public sealed class AlertService
                 RuleLabel = "Rule",
                 ConfidenceLabel = "Confidence",
                 NothingChanged = "Nothing was changed.",
+                StopProcess = "Stop the program",
+                UsingProcess = "{0} program(s) are running this file.",
+                UsingProcessOne = "Running right now: {0}",
+                StopNeedsRemediation = "Turn on remediation in Settings to let Lumen stop them.",
                 QuietTitle = "Detection recorded",
                 QuietDetailOne = "1 detection was recorded without an alert.",
                 QuietDetailMany = "{0} detections were recorded without an alert."

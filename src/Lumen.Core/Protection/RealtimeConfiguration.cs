@@ -99,9 +99,12 @@ public static class RealtimeConfigurationResolver
         var current = settings.Normalize();
         var exclusions = NormalizeExclusions(current.RealtimeExcludedFolders, additionalExcludedFolders);
 
+        // Both watch lists cover the dropper locations: the Downloads folder, the
+        // per-user Startup folder and the per-user temporary folder. Aggressive mode
+        // adds the extra detection rules and the eagerness, not more folders.
         var roots = current.AggressiveMode
             ? AggressiveWatchList.Build(userProfile, current.RealtimeWatchFolders, exclusions)
-            : RealtimeMonitor.BuildWatchRoots(userProfile, current.RealtimeWatchFolders, exclusions);
+            : AggressiveWatchList.BuildStandard(userProfile, current.RealtimeWatchFolders, exclusions);
 
         var settleDelay = current.AggressiveMode
             ? AggressiveSettleDelay

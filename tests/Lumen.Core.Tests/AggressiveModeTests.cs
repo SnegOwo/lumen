@@ -138,7 +138,7 @@ public sealed class AggressiveModeTests
     }
 
     [Fact]
-    public void Standard_configuration_is_unchanged_when_aggressive_mode_is_off()
+    public void Standard_configuration_keeps_the_slow_settle_delay_and_the_small_worker_pool()
     {
         using var temp = new TempDirectory();
         var profile = CreateProfile(temp);
@@ -154,12 +154,40 @@ public sealed class AggressiveModeTests
         Assert.Equal(TimeSpan.FromMilliseconds(150), configuration.SettleDelay);
         Assert.Equal(3, configuration.WorkerCount);
         Assert.False(configuration.AggressiveMode);
+    }
+
+    /// <summary>
+    /// The standard watch list covers the dropper locations too.
+    ///
+    /// A file dropped in the Startup folder is run at every logon, and a file unpacked
+    /// into the temporary folder is exactly the kind of thing nobody looks at by hand.
+    /// Watching those two costs a folder watch and nothing else: the cost of aggressive
+    /// mode is the extra detection rules and the eagerness, not the number of folders.
+    /// </summary>
+    [Fact]
+    public void Standard_configuration_also_watches_the_startup_and_temporary_folders()
+    {
+        using var temp = new TempDirectory();
+        var profile = CreateProfile(temp);
+        var settings = new AppSettings
+        {
+            AggressiveMode = false,
+            RealtimeSettleDelayMs = 150,
+            RealtimeWorkerCount = 3
+        };
+
+        var configuration = RealtimeMonitor.ResolveConfiguration(settings, profile);
+
         Assert.Equal(
-            RealtimeMonitor.BuildWatchRoots(profile, settings.RealtimeWatchFolders, []),
+            AggressiveWatchList.BuildStandard(profile, settings.RealtimeWatchFolders, []),
             configuration.WatchRoots);
-        Assert.DoesNotContain(
+
+        Assert.Contains(
             configuration.WatchRoots,
             root => IsSame(root, AggressiveWatchList.StartupFolder(profile)));
+        Assert.Contains(
+            configuration.WatchRoots,
+            root => IsSame(root, AggressiveWatchList.TempFolder(profile)));
     }
 
     [Fact]

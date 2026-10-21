@@ -154,17 +154,24 @@ public sealed class RealtimeKillService
     /// safety check".
     /// </param>
     /// <param name="cancellationToken">Cancels the run.</param>
+    /// <param name="userConfirmed">
+    /// True when the user confirmed this specific action by hand, for example by
+    /// pressing a button in the alert window. The automatic switch is not needed then,
+    /// because the confirmation IS the consent. The remediation master switch is still
+    /// required, and every other safety rule still applies unchanged.
+    /// </param>
     /// <returns>What was stopped, what was refused and why.</returns>
     public async Task<RealtimeKillResult> KillAsync(
         RealtimeKillRequest request,
         IReadOnlyCollection<int>? approvedProcessIds,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool userConfirmed = false)
     {
         ArgumentNullException.ThrowIfNull(request);
 
         // The switch is checked before anything else: with the feature off, Lumen does
         // not even look at the running processes, and the journal stays untouched.
-        if (!AutoKillEnabled || !RemediationEnabled)
+        if (!RemediationEnabled || (!AutoKillEnabled && !userConfirmed))
         {
             // Turning the feature off is the normal state, not a problem to report: the
             // log stays quiet so a caller that asks anyway does not fill it up.
@@ -223,6 +230,34 @@ public sealed class RealtimeKillService
         finally
         {
             _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Lists the processes that are using a file, without stopping anything.
+    ///
+    /// The interface uses this to tell the user "two programs are running this
+    /// file" before they decide what to do. Listing a process is a read, so it is
+    /// allowed even when the automatic kill is turned off.
+    /// </summary>
+    /// <param name="filePath">The file to look for.</param>
+    /// <param name="cancellationToken">Cancels the lookup.</param>
+    /// <returns>The processes whose executable or loaded module is that file.</returns>
+    public async Task<IReadOnlyList<ProcessMatch>> FindAsync(
+        string filePath,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return [];
+
+        try
+        {
+            var target = PathRules.NormalizeFile(filePath);
+            return await _processes.FindByFilePathAsync(target, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            _log.Warn("RealtimeKill", "The path of the flagged file is not valid.");
+            return [];
         }
     }
 

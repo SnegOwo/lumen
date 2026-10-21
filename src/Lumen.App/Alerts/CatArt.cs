@@ -1,6 +1,9 @@
+using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace Lumen.App.Alerts;
 
@@ -21,71 +24,64 @@ public enum CatMood
 }
 
 /// <summary>
-/// A cat, drawn entirely with WPF vector primitives — no image assets, no fonts, no
-/// downloads. It blinks on its own, its tail sways, and it can look alarmed, calm or
-/// content.
+/// The cat.
 ///
-/// <para>
-/// Everything is drawn in the supplied brushes so it follows the current theme.
-/// </para>
+/// It is a PHOTO, not a drawing. The picture lives in the application resources
+/// (<c>Assets/cat.jpg</c> or <c>Assets/cat.png</c>) so it travels inside the
+/// executable and needs no file next to it. When no picture is present the control
+/// falls back to a simple drawn cat, so the alert always looks like something.
 ///
-/// <para>
-/// The drawing is deliberately cheap, because a cat that redraws itself twenty-five
-/// times a second on a machine that is already busy is a nuisance rather than a
-/// joke. Everything that does not move — the body, the chest, the head, the ears,
-/// the face, the whiskers — is built once, frozen and reused, and the thirteen
-/// positions of the tail are built once as well. The animation is a storyboard that
-/// advances a single number, so the cat costs a re-render thirteen times a second,
-/// and it costs nothing at all while it is hidden, unloaded or in the background.
-/// </para>
+/// The only animation is a gentle bob, and it is deliberately cheap: a timer moves a
+/// transform, so nothing is redrawn and nothing is allocated. The timer only runs while
+/// the cat is on screen and loaded, so a cat that nobody can see costs nothing.
 /// </summary>
-public sealed class CatArt : FrameworkElement
+public sealed class CatArt : Image
 {
-    /// <summary>
-    /// The size of the drawing coordinate system. The cat is drawn once in a square
-    /// of this size and then scaled to the element, so one set of geometry serves
-    /// every size the cat is used at.
-    /// </summary>
-    private const double Unit = 120.0;
+    private static readonly string[] CandidateResources =
+    [
+        "pack://application:,,,/Lumen;component/Assets/cat.jpg",
+        "pack://application:,,,/Lumen;component/Assets/cat.png"
+    ];
 
-    /// <summary>
-    /// How many times a second the tail moves. The tail is a small detail; thirteen
-    /// frames a second is enough to read as alive, and it costs a little over half
-    /// of the twenty-five frames a second the cat used to redraw itself at.
-    /// </summary>
-    private const int FramesPerSecond = 13;
+    private static readonly string[] CandidateFiles =
+    [
+        "Assets\\cat.jpg",
+        "Assets\\cat.png"
+    ];
 
-    /// <summary>How many frames make one full sway of the tail: three seconds.</summary>
-    private const int FramesPerCycle = FramesPerSecond * 3;
-
-    /// <summary>
-    /// How many frames at the start of a cycle the cat keeps its eyes closed. Two
-    /// frames is about a tenth of a second, which is long enough to read as a blink.
-    /// </summary>
-    private const int BlinkFrames = 2;
-
-    /// <summary>The two sides of the cat, from left to right.</summary>
-    private static readonly int[] Sides = [-1, 1];
-
-    private Storyboard? _animation;
-    private CatCache? _cache;
-    private double _cacheWidth;
-    private double _cacheHeight;
-    private CatMood _cacheMood;
-    private Brush? _cacheFur;
-    private Brush? _cacheFurLight;
-    private Brush? _cacheAccent;
-    private bool _suspended;
+    private readonly DispatcherTimer _timer;
+    private readonly TranslateTransform _bob;
+    private double _phase;
 
     public CatArt()
     {
+        _bob = new TranslateTransform();
+        RenderTransform = _bob;
+        Stretch = Stretch.Uniform;
+        SnapsToDevicePixels = true;
         IsHitTestVisible = false;
         Focusable = false;
 
-        IsVisibleChanged += OnIsVisibleChanged;
-        Loaded += OnLoaded;
-        Unloaded += OnUnloaded;
+        Source = LoadPhoto();
+        HasPhoto = Source is not null;
+        if (!HasPhoto) Source = BuildFallback();
+
+        _timer = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromMilliseconds(60)
+        };
+        _timer.Tick += (_, _) => Advance();
+
+        Loaded += (_, _) => UpdateAnimationState();
+        Unloaded += (_, _) => _timer.Stop();
+        IsVisibleChanged += (_, _) => UpdateAnimationState();
     }
+
+    /// <summary>
+    /// True when a real photograph was found. The drawn cat is only a placeholder for
+    /// the case where the picture has not been added to the project yet.
+    /// </summary>
+    public bool HasPhoto { get; private set; }
 
     /// <summary>The mood the cat is in.</summary>
     public CatMood Mood
@@ -100,404 +96,109 @@ public sealed class CatArt : FrameworkElement
         typeof(CatArt),
         new FrameworkPropertyMetadata(CatMood.Alarmed));
 
-    /// <summary>The main fur colour.</summary>
-    public Brush Fur
+    /// <summary>Stops the bob for a moment, for example while the alert is being read.</summary>
+    public void SuspendAnimation() => _timer.Stop();
+
+    /// <summary>Starts the bob again.</summary>
+    public void ResumeAnimation() => UpdateAnimationState();
+
+    protected override void OnRenderSizeChanged(SizeChangedInfo info)
     {
-        get => (Brush)GetValue(FurProperty);
-        set => SetValue(FurProperty, value);
-    }
-
-    public static readonly DependencyProperty FurProperty = DependencyProperty.Register(
-        nameof(Fur),
-        typeof(Brush),
-        typeof(CatArt),
-        new FrameworkPropertyMetadata(Brushes.SlateGray));
-
-    /// <summary>The inner-ear and chest colour.</summary>
-    public Brush FurLight
-    {
-        get => (Brush)GetValue(FurLightProperty);
-        set => SetValue(FurLightProperty, value);
-    }
-
-    public static readonly DependencyProperty FurLightProperty = DependencyProperty.Register(
-        nameof(FurLight),
-        typeof(Brush),
-        typeof(CatArt),
-        new FrameworkPropertyMetadata(Brushes.Silver));
-
-    /// <summary>The colour of the eyes and the outlines.</summary>
-    public Brush Accent
-    {
-        get => (Brush)GetValue(AccentProperty);
-        set => SetValue(AccentProperty, value);
-    }
-
-    public static readonly DependencyProperty AccentProperty = DependencyProperty.Register(
-        nameof(Accent),
-        typeof(Brush),
-        typeof(CatArt),
-        new FrameworkPropertyMetadata(Brushes.Teal));
-
-    /// <summary>
-    /// The frame of the tail animation that is on screen. The storyboard advances
-    /// this number and does nothing else; the drawing reads it and picks the shape
-    /// that belongs to it.
-    /// </summary>
-    private static readonly DependencyProperty FrameIndexProperty = DependencyProperty.Register(
-        "FrameIndex",
-        typeof(double),
-        typeof(CatArt),
-        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
-
-    /// <summary>
-    /// Stops the animation while the cat stays on screen.
-    ///
-    /// <para>
-    /// The alert window uses this when the user moves to another window: a cat that
-    /// keeps waving in the background is a small waste of somebody else's machine.
-    /// The cat is still drawn, it simply stops moving.
-    /// </para>
-    /// </summary>
-    public void SuspendAnimation()
-    {
-        _suspended = true;
-        StopAnimation();
-    }
-
-    /// <summary>
-    /// Starts the animation again, but only if the cat is actually on screen. A cat
-    /// that is hidden or not loaded never runs.
-    /// </summary>
-    public void ResumeAnimation()
-    {
-        _suspended = false;
+        base.OnRenderSizeChanged(info);
         UpdateAnimationState();
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs args) => UpdateAnimationState();
-
-    private void OnUnloaded(object sender, RoutedEventArgs args)
+    private void UpdateAnimationState()
     {
-        // A cat that is no longer on screen must not keep a timer or a clock alive.
-        StopAnimation();
+        if (IsVisible && IsLoaded) _timer.Start();
+        else _timer.Stop();
     }
 
-    protected override void OnRender(DrawingContext context)
+    private void Advance()
     {
-        var width = ActualWidth <= 0 ? Unit : ActualWidth;
-        var height = ActualHeight <= 0 ? Unit : ActualHeight;
-        var scale = Math.Min(width, height) / Unit;
+        // A slow, shallow bob. It is a transform change, so the picture is never
+        // redrawn and nothing is allocated.
+        _phase += 0.05;
+        if (_phase > 200) _phase -= 200;
+        _bob.Y = Math.Sin(_phase * 0.5) * 3.0;
+    }
 
-        var cache = EnsureCache(width, height, scale);
-        var frame = CurrentFrame();
-
-        context.DrawGeometry(null, cache.TailPen, cache.Tails[frame]);
-
-        foreach (var part in cache.Parts)
+    private static ImageSource? LoadPhoto()
+    {
+        foreach (var uri in CandidateResources)
         {
-            context.DrawGeometry(part.Fill, part.Stroke, part.Geometry);
+            var source = TryLoad(uri);
+            if (source is not null) return source;
         }
 
-        if (IsBlinking(frame))
+        foreach (var relative in CandidateFiles)
         {
-            foreach (var part in cache.Lids)
-            {
-                context.DrawGeometry(part.Fill, part.Stroke, part.Geometry);
-            }
+            var path = Path.Combine(AppContext.BaseDirectory, relative);
+            if (!File.Exists(path)) continue;
+            var source = TryLoad(path);
+            if (source is not null) return source;
         }
 
-        context.PushOpacity(0.75);
-        context.DrawGeometry(cache.Whiskers.Fill, cache.Whiskers.Stroke, cache.Whiskers.Geometry);
-        context.Pop();
+        return null;
+    }
+
+    private static ImageSource? TryLoad(string location)
+    {
+        try
+        {
+            var source = new BitmapImage();
+            source.BeginInit();
+            source.UriSource = new Uri(location, UriKind.Absolute);
+            source.CacheOption = BitmapCacheOption.OnLoad;
+            source.EndInit();
+            source.Freeze();
+            return source;
+        }
+        catch (Exception ex) when (ex is IOException or UriFormatException or NotSupportedException or ArgumentException)
+        {
+            // Not usable. Try the next one.
+            return null;
+        }
     }
 
     /// <summary>
-    /// Builds the geometry of the cat, once, and keeps it until something that
-    /// changes it happens.
-    ///
-    /// <para>
-    /// This is the whole point of the cat: the body, the head, the ears, the face and
-    /// the whiskers never move, so they are built once, frozen and drawn again and
-    /// again. Only the tail moves, and its positions are built once too, one per
-    /// frame of the animation. A frame therefore allocates nothing at all.
-    /// </para>
+    /// A plain drawn cat, used only when the photograph has not been added to the
+    /// project. It is built once and frozen, so it costs nothing to display.
     /// </summary>
-    private CatCache EnsureCache(double width, double height, double scale)
+    private static ImageSource BuildFallback()
     {
-        if (_cache is not null &&
-            _cacheWidth == width &&
-            _cacheHeight == height &&
-            _cacheMood == Mood &&
-            ReferenceEquals(_cacheFur, Fur) &&
-            ReferenceEquals(_cacheFurLight, FurLight) &&
-            ReferenceEquals(_cacheAccent, Accent))
-        {
-            return _cache;
-        }
+        var group = new DrawingGroup();
 
-        _cache = BuildCache(width, height, scale);
-        _cacheWidth = width;
-        _cacheHeight = height;
-        _cacheMood = Mood;
-        _cacheFur = Fur;
-        _cacheFurLight = FurLight;
-        _cacheAccent = Accent;
-        return _cache;
-    }
+        var body = new EllipseGeometry(new Rect(26, 58, 68, 62));
+        var head = new EllipseGeometry(new Rect(30, 18, 60, 54));
+        var chest = new EllipseGeometry(new Rect(44, 78, 32, 34));
+        var eye = new EllipseGeometry(new Rect(46, 38, 10, 12));
+        var eye2 = new EllipseGeometry(new Rect(64, 38, 10, 12));
 
-    private CatCache BuildCache(double width, double height, double scale)
-    {
-        var cx = width / 2.0;
-        var cy = height / 2.0;
-
-        var parts = new List<Part>();
-        var lids = new List<Part>();
-
-        var tailPen = new Pen(Accent, 5 * scale) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-        var eyePen = new Pen(Accent, 3 * scale) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-        var mouthPen = new Pen(Accent, 2 * scale) { StartLineCap = PenLineCap.Round };
-        var whiskerPen = new Pen(Accent, 1.6 * scale) { StartLineCap = PenLineCap.Round };
-
-        // The body and the chest.
-        parts.Add(new Part(Fur, null, Frozen(new EllipseGeometry(
-            new Rect(cx - 26 * scale, cy - 4 * scale, 52 * scale, 46 * scale)))));
-        parts.Add(new Part(FurLight, null, Frozen(new EllipseGeometry(
-            new Rect(cx - 13 * scale, cy + 4 * scale, 26 * scale, 30 * scale)))));
-
-        // The head.
-        parts.Add(new Part(Fur, null, Frozen(new EllipseGeometry(
-            new Rect(cx - 30 * scale, cy - 28 * scale, 60 * scale, 54 * scale)))));
-
-        // The ears, outer and inner.
-        foreach (var side in Sides)
-        {
-            var left = cx + side * 26 * scale - 11 * scale;
-            var right = cx + side * 26 * scale + 11 * scale;
-            var tip = cy - 44 * scale;
-
-            var outer = new StreamGeometry();
-            using (var ctx = outer.Open())
-            {
-                ctx.BeginFigure(new Point(left, cy - 22 * scale), isFilled: true, isClosed: true);
-                ctx.LineTo(new Point(cx + side * 28 * scale, tip), isStroked: false, isSmoothJoin: false);
-                ctx.LineTo(new Point(right, cy - 18 * scale), isStroked: false, isSmoothJoin: false);
-            }
-            parts.Add(new Part(Fur, null, Frozen(outer)));
-
-            var inner = new StreamGeometry();
-            using (var ctx = inner.Open())
-            {
-                ctx.BeginFigure(new Point(left + 3 * scale, cy - 23 * scale), isFilled: true, isClosed: true);
-                ctx.LineTo(new Point(cx + side * 27 * scale, tip + 6 * scale), isStroked: false, isSmoothJoin: false);
-                ctx.LineTo(new Point(right - 3 * scale, cy - 20 * scale), isStroked: false, isSmoothJoin: false);
-            }
-            parts.Add(new Part(FurLight, null, Frozen(inner)));
-        }
-
-        // The eyes. The lids that close them are kept apart, because they are only
-        // drawn while the cat blinks.
-        var eyeY = cy - 6 * scale;
-        var eyeOffset = 13 * scale;
-        var eyeWidth = Mood == CatMood.Alarmed ? 8 * scale : 6 * scale;
-        var eyeHeight = Mood == CatMood.Alarmed ? 10 * scale : 5 * scale;
-
-        if (Mood == CatMood.Content)
-        {
-            // Closed, contented arcs.
-            foreach (var side in Sides)
-            {
-                var arc = new StreamGeometry();
-                using (var ctx = arc.Open())
-                {
-                    ctx.BeginFigure(new Point(cx + side * eyeOffset - eyeWidth, eyeY), isFilled: false, isClosed: false);
-                    ctx.QuadraticBezierTo(
-                        new Point(cx + side * eyeOffset, eyeY + 6 * scale),
-                        new Point(cx + side * eyeOffset + eyeWidth, eyeY),
-                        isStroked: true,
-                        isSmoothJoin: true);
-                }
-                parts.Add(new Part(null, eyePen, Frozen(arc)));
-            }
-        }
-        else
-        {
-            foreach (var side in Sides)
-            {
-                parts.Add(new Part(Accent, null, Frozen(new EllipseGeometry(
-                    new Rect(cx + side * eyeOffset - eyeWidth / 2, eyeY - eyeHeight / 2, eyeWidth, eyeHeight)))));
-
-                lids.Add(new Part(Fur, null, Frozen(new RectangleGeometry(
-                    new Rect(cx + side * eyeOffset - eyeWidth, eyeY - eyeHeight, eyeWidth * 2, eyeHeight * 2)))));
-            }
-        }
-
-        // The nose.
         var nose = new StreamGeometry();
         using (var ctx = nose.Open())
         {
-            ctx.BeginFigure(new Point(cx - 4 * scale, cy + 6 * scale), isFilled: true, isClosed: true);
-            ctx.LineTo(new Point(cx + 4 * scale, cy + 6 * scale), isStroked: false, isSmoothJoin: false);
-            ctx.LineTo(new Point(cx, cy + 11 * scale), isStroked: false, isSmoothJoin: false);
+            ctx.BeginFigure(new Point(56, 52), isFilled: true, isClosed: true);
+            ctx.LineTo(new Point(64, 52), isStroked: false, isSmoothJoin: false);
+            ctx.LineTo(new Point(60, 58), isStroked: false, isSmoothJoin: false);
         }
-        parts.Add(new Part(Accent, null, Frozen(nose)));
+        nose.Freeze();
 
-        // The mouth.
-        var mouth = new StreamGeometry();
-        using (var ctx = mouth.Open())
-        {
-            ctx.BeginFigure(new Point(cx, cy + 11 * scale), isFilled: false, isClosed: false);
-            if (Mood == CatMood.Alarmed)
-            {
-                ctx.QuadraticBezierTo(new Point(cx - 8 * scale, cy + 20 * scale), new Point(cx - 12 * scale, cy + 12 * scale), isStroked: true, isSmoothJoin: true);
-                ctx.QuadraticBezierTo(new Point(cx, cy + 14 * scale), new Point(cx + 12 * scale, cy + 12 * scale), isStroked: true, isSmoothJoin: true);
-                ctx.QuadraticBezierTo(new Point(cx + 8 * scale, cy + 20 * scale), new Point(cx, cy + 11 * scale), isStroked: true, isSmoothJoin: true);
-            }
-            else
-            {
-                ctx.QuadraticBezierTo(new Point(cx - 7 * scale, cy + 18 * scale), new Point(cx - 13 * scale, cy + 12 * scale), isStroked: true, isSmoothJoin: true);
-                ctx.QuadraticBezierTo(new Point(cx, cy + 15 * scale), new Point(cx + 13 * scale, cy + 12 * scale), isStroked: true, isSmoothJoin: true);
-                ctx.QuadraticBezierTo(new Point(cx + 7 * scale, cy + 18 * scale), new Point(cx, cy + 11 * scale), isStroked: true, isSmoothJoin: true);
-            }
-        }
-        parts.Add(new Part(null, mouthPen, Frozen(mouth)));
+        var fur = new SolidColorBrush(Color.FromRgb(0x3A, 0x44, 0x5C));
+        var light = new SolidColorBrush(Color.FromRgb(0x5A, 0x66, 0x80));
+        var accent = new SolidColorBrush(Color.FromRgb(0x5E, 0xEA, 0xD4));
 
-        // The whiskers: one geometry for all six lines.
-        var whiskers = new StreamGeometry();
-        using (var ctx = whiskers.Open())
-        {
-            foreach (var side in Sides)
-            {
-                for (var row = -1; row <= 1; row++)
-                {
-                    var start = new Point(cx + side * 16 * scale, cy + 8 * scale + row * 4 * scale);
-                    var end = new Point(cx + side * 40 * scale, cy + 4 * scale + row * 7 * scale);
-                    ctx.BeginFigure(start, isFilled: false, isClosed: false);
-                    ctx.LineTo(end, isStroked: true, isSmoothJoin: true);
-                }
-            }
-        }
+        group.Children.Add(new GeometryDrawing(fur, null, body));
+        group.Children.Add(new GeometryDrawing(light, null, chest));
+        group.Children.Add(new GeometryDrawing(fur, null, head));
+        group.Children.Add(new GeometryDrawing(accent, null, eye));
+        group.Children.Add(new GeometryDrawing(accent, null, eye2));
+        group.Children.Add(new GeometryDrawing(accent, null, nose));
 
-        // The tail: one frozen shape per frame of the animation, so that moving the
-        // tail costs a lookup rather than a new geometry.
-        var amplitude = (Mood == CatMood.Alarmed ? 4.0 : 2.5) * scale;
-        var tails = new Geometry[FramesPerCycle];
-        for (var frame = 0; frame < FramesPerCycle; frame++)
-        {
-            var sway = Math.Sin(2 * Math.PI * frame / FramesPerCycle) * amplitude;
+        group.Freeze();
 
-            var tail = new StreamGeometry();
-            using (var ctx = tail.Open())
-            {
-                ctx.BeginFigure(new Point(cx + 22 * scale, cy + 26 * scale), isFilled: false, isClosed: false);
-                ctx.BezierTo(
-                    new Point(cx + 48 * scale, cy + 30 * scale + sway),
-                    new Point(cx + 52 * scale, cy - 4 * scale + sway),
-                    new Point(cx + 34 * scale, cy - 12 * scale + sway),
-                    isStroked: true,
-                    isSmoothJoin: true);
-            }
-            tails[frame] = Frozen(tail);
-        }
-
-        return new CatCache(
-            parts,
-            lids,
-            new Part(null, whiskerPen, Frozen(whiskers)),
-            tails,
-            tailPen);
+        var drawing = new DrawingImage(group);
+        drawing.Freeze();
+        return drawing;
     }
-
-    /// <summary>
-    /// Freezes a geometry so it can be shared and drawn without being checked for
-    /// changes on every frame.
-    /// </summary>
-    private static Geometry Frozen(Geometry geometry)
-    {
-        geometry.Freeze();
-        return geometry;
-    }
-
-    private int CurrentFrame()
-    {
-        var frame = (int)Math.Round((double)GetValue(FrameIndexProperty), MidpointRounding.AwayFromZero);
-        if (frame < 0) return 0;
-        if (frame >= FramesPerCycle) return FramesPerCycle - 1;
-        return frame;
-    }
-
-    private bool IsBlinking(int frame) => Mood != CatMood.Content && frame < BlinkFrames;
-
-    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs args) =>
-        UpdateAnimationState();
-
-    /// <summary>
-    /// The animation runs only while the cat is on screen and loaded. A storyboard
-    /// stops on its own when it is removed from the tree, but it does not stop when
-    /// the element is merely hidden, so the state is checked here.
-    /// </summary>
-    private void UpdateAnimationState()
-    {
-        if (IsVisible && IsLoaded && !_suspended) StartAnimation();
-        else StopAnimation();
-    }
-
-    private void StartAnimation()
-    {
-        // Nothing to do when the tail is already moving.
-        if (_animation is not null && _animation.GetCurrentState() == ClockState.Active) return;
-
-        // The old clock is stopped first and a fresh storyboard is built, so starting
-        // the animation can never depend on what a stopped storyboard remembers.
-        StopAnimation();
-        _animation = CreateAnimation();
-
-        // The storyboard is started as a controllable one, so it can be stopped and
-        // started again without the tail jumping.
-        _animation.Begin(this, true);
-    }
-
-    private void StopAnimation() => _animation?.Stop();
-
-    /// <summary>
-    /// Builds the animation. It advances a single number through discrete key
-    /// frames: a discrete key frame holds its value until the next one, so the
-    /// number — and with it the drawing — changes thirteen times a second rather
-    /// than sixty times a second.
-    /// </summary>
-    private Storyboard CreateAnimation()
-    {
-        var frames = new DoubleAnimationUsingKeyFrames
-        {
-            Duration = new Duration(TimeSpan.FromSeconds(FramesPerCycle / (double)FramesPerSecond)),
-            RepeatBehavior = RepeatBehavior.Forever
-        };
-
-        for (var frame = 0; frame < FramesPerCycle; frame++)
-        {
-            frames.KeyFrames.Add(new DiscreteDoubleKeyFrame(
-                frame,
-                KeyTime.FromPercent(frame / (double)FramesPerCycle)));
-        }
-
-        var storyboard = new Storyboard();
-        storyboard.Children.Add(frames);
-        Storyboard.SetTarget(frames, this);
-        Storyboard.SetTargetProperty(frames, new PropertyPath(FrameIndexProperty));
-        return storyboard;
-    }
-
-    /// <summary>One drawn piece of the cat: a fill, a stroke and a shape.</summary>
-    private sealed record Part(Brush? Fill, Pen? Stroke, Geometry Geometry);
-
-    /// <summary>
-    /// Everything the cat is made of, built once. The tail is the only part that
-    /// changes from frame to frame, and its shapes are all here as well.
-    /// </summary>
-    private sealed record CatCache(
-        IReadOnlyList<Part> Parts,
-        IReadOnlyList<Part> Lids,
-        Part Whiskers,
-        IReadOnlyList<Geometry> Tails,
-        Pen TailPen);
 }

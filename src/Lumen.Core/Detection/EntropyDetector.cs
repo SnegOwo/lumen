@@ -52,6 +52,31 @@ public sealed class EntropyDetector : IScanDetector
     /// <inheritdoc />
     public Confidence Confidence => Confidence.Low;
 
+    /// <summary>
+    /// Extensions whose contents are normally compressed or encrypted.
+    ///
+    /// <para>
+    /// A high entropy measurement says NOTHING about a PNG, a video or a ZIP: their
+    /// bytes are supposed to look random. Reporting them would fill a user's results
+    /// with noise and train them to ignore Lumen. The interesting cases inside those
+    /// formats - an executable in an archive, a script in a document - are covered by
+    /// the archive and document rules, which look at the STRUCTURE rather than at the
+    /// byte spread.
+    /// </para>
+    /// </summary>
+    private static readonly HashSet<string> ExpectedHighEntropyExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Images
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".ico", ".heic",
+        // Audio and video
+        ".mp3", ".m4a", ".wav", ".flac", ".ogg", ".mp4", ".mkv", ".avi", ".mov", ".wmv",
+        ".webm", ".m4v", ".3gp",
+        // Archives and containers
+        ".zip", ".7z", ".rar", ".gz", ".bz2", ".xz", ".tgz", ".cab", ".jar", ".apk", ".iso",
+        // Documents that are containers
+        ".pdf", ".docx", ".xlsx", ".pptx", ".odt", ".ods", ".epub"
+    };
+
     /// <inheritdoc />
     public IEnumerable<Finding> Inspect(FileProbe probe, CancellationToken cancellationToken)
     {
@@ -62,8 +87,12 @@ public sealed class EntropyDetector : IScanDetector
 
         var findings = new List<Finding>();
 
+        // A media file or an archive is expected to have even bytes. Measuring it and
+        // saying so is not a finding, it is a fact about the format.
+        var expectedToBeEven = ExpectedHighEntropyExtensions.Contains(Path.GetExtension(probe.FileName));
+
         var overall = Entropy.Shannon(content);
-        if (overall >= HighFileEntropy)
+        if (!expectedToBeEven && overall >= HighFileEntropy)
         {
             findings.Add(new Finding
             {
@@ -84,7 +113,6 @@ public sealed class EntropyDetector : IScanDetector
         var head = content[..Math.Min(512, content.Length)];
         if (Entropy.PrintableRatio(head) < 0.9) return findings;
         if (overall >= 6.5) return findings;
-
         var tail = Entropy.ShannonTail(content, TailWindowBytes);
         if (tail < HighTailEntropy) return findings;
 

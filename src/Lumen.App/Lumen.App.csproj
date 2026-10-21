@@ -43,4 +43,15 @@
     <Resource Include="Assets\lumen.ico" />
   </ItemGroup>
 
+  <!-- The cat is a PHOTO, and it travels inside the executable.
+       Drop the picture at assets\cat.jpg (or assets\cat.png) in the repository and it is
+       embedded automatically. When no picture is there, the interface falls back to a
+       simple drawn cat, so the build never depends on it. -->
+  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)..\..\assets\cat.jpg')">
+    <Resource Include="..\..\assets\cat.jpg" Link="Assets\cat.jpg" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)..\..\assets\cat.png')">
+    <Resource Include="..\..\assets\cat.png" Link="Assets\cat.png" />
+  </ItemGroup>
+
 </Project>

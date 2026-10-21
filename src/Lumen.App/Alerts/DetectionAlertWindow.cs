@@ -24,6 +24,28 @@ public sealed record AlertStrings
     public string ConfidenceLabel { get; init; } = "Confidence";
     public string NothingChanged { get; init; } = "Nothing was changed.";
 
+    /// <summary>The button that stops the program running the flagged file.</summary>
+    public string StopProcess { get; init; } = "Stop the program";
+
+    /// <summary>
+    /// The note under the details when a program is running the flagged file.
+    /// {0} is the number of programs.
+    /// </summary>
+    public string UsingProcess { get; init; } = "{0} program(s) are running this file.";
+
+    /// <summary>
+    /// The note under the details when exactly one program is running the file.
+    /// {0} is the name of the program.
+    /// </summary>
+    public string UsingProcessOne { get; init; } = "Running right now: {0}";
+
+    /// <summary>
+    /// The note shown when programs are running the file but the remediation switch is
+    /// off, so Lumen is not allowed to stop them.
+    /// </summary>
+    public string StopNeedsRemediation { get; init; } =
+        "Turn on remediation in Settings to let Lumen stop them.";
+
     /// <summary>
     /// The headline of the status line when a detection was recorded without a loud
     /// alert. It says that something was seen, so the user is never left guessing.
@@ -76,9 +98,17 @@ public sealed class DetectionAlertWindow : Window
     private readonly CatArt? _cat;
     private bool _pulseAllowed = true;
 
-    public DetectionAlertWindow(AlertStrings strings, string fileName, string rule, string confidence, bool showCat)
+    public DetectionAlertWindow(
+        AlertStrings strings,
+        string fileName,
+        string rule,
+        string confidence,
+        bool showCat,
+        IReadOnlyList<string>? runningProcesses = null,
+        bool allowStop = false)
     {
         Strings = strings;
+        var processes = runningProcesses ?? [];
 
         Title = strings.Headline;
         WindowStyle = WindowStyle.None;
@@ -151,21 +181,24 @@ public sealed class DetectionAlertWindow : Window
             var cat = new CatArt
             {
                 Mood = CatMood.Alarmed,
-                Width = 150,
-                Height = 150,
+                Width = 170,
+                Height = 170,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 12),
-                // The alert card is always dark, so the cat uses its own palette
-                // instead of the application's surface colours.
-                Fur = new SolidColorBrush(Color.FromRgb(0x3A, 0x44, 0x5C)),
-                FurLight = new SolidColorBrush(Color.FromRgb(0x5A, 0x66, 0x80)),
-                Accent = new SolidColorBrush(Color.FromRgb(0x5E, 0xEA, 0xD4))
+                Margin = new Thickness(0, 0, 0, 12)
             };
             _cat = cat;
             content.Children.Add(cat);
         }
 
         content.Children.Add(BuildDetails(strings, fileName, rule, confidence));
+
+        // The processes that are using this file. Knowing that a program is RUNNING
+        // the suspicious file is the most useful thing the alert can say, and it is
+        // what makes the "stop it" action possible.
+        if (processes.Count > 0)
+        {
+            content.Children.Add(BuildProcessNote(strings, processes, allowStop));
+        }
 
         var buttons = new StackPanel
         {
@@ -200,6 +233,28 @@ public sealed class DetectionAlertWindow : Window
         };
 
         buttons.Children.Add(quarantine);
+
+        // The button that stops the program that is running the file. It only appears
+        // when there is something to stop, and it is a second, separate decision: the
+        // user may want to stop the program but keep the file.
+        Button? stop = null;
+        if (processes.Count > 0 && allowStop)
+        {
+            stop = new Button
+            {
+                Content = strings.StopProcess,
+                Padding = new Thickness(22, 10, 22, 10),
+                Margin = new Thickness(10, 0, 10, 0),
+                FontSize = 14,
+                FontWeight = FontWeights.SemiBold,
+                Cursor = Cursors.Hand,
+                Background = new SolidColorBrush(Color.FromRgb(0xB4, 0x53, 0x09)),
+                Foreground = Brushes.White,
+                BorderThickness = new Thickness(0)
+            };
+            buttons.Children.Add(stop);
+        }
+
         buttons.Children.Add(dismiss);
         content.Children.Add(buttons);
 
@@ -209,6 +264,14 @@ public sealed class DetectionAlertWindow : Window
             QuarantineRequested?.Invoke(this, EventArgs.Empty);
             Close();
         };
+        if (stop is not null)
+        {
+            stop.Click += (_, _) =>
+            {
+                StopProcessRequested?.Invoke(this, EventArgs.Empty);
+                Close();
+            };
+        }
 
         // The destructive action must never hold the keyboard focus. If it did, a
         // stray Enter key would quarantine a file that nobody had confirmed.
@@ -228,6 +291,67 @@ public sealed class DetectionAlertWindow : Window
 
     /// <summary>Raised when the user asks for the file to be quarantined.</summary>
     public event EventHandler? QuarantineRequested;
+
+    /// <summary>
+    /// Raised when the user asks for the programs running the flagged file to be
+    /// stopped. It is a separate decision from quarantining the file: a user may want
+    /// to stop the program and keep the file, or the other way round.
+    /// </summary>
+    public event EventHandler? StopProcessRequested;
+
+    /// <summary>
+    /// Builds the note that says which programs are running the flagged file. It is the
+    /// most useful thing the alert can say, and it is what makes the "stop it" button
+    /// possible.
+    /// </summary>
+    private static UIElement BuildProcessNote(AlertStrings strings, IReadOnlyList<string> processes, bool allowStop)
+    {
+        var names = string.Join(", ", processes.Take(3));
+        if (processes.Count > 3) names += $" (+{processes.Count - 3})";
+
+        var panel = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 14, 0, 0)
+        };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = string.Format(strings.UsingProcess, processes.Count),
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xFB, 0xBF, 0x24)),
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = string.Format(strings.UsingProcessOne, names),
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xB4, 0xB4, 0xC4)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 440
+        });
+
+        if (!allowStop)
+        {
+            // The programs are named, but Lumen is not allowed to stop them yet. Say so
+            // instead of hiding the button and leaving the user wondering.
+            panel.Children.Add(new TextBlock
+            {
+                Text = strings.StopNeedsRemediation,
+                FontSize = 11.5,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x8B, 0x8B, 0x9B)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 440,
+                Margin = new Thickness(0, 4, 0, 0)
+            });
+        }
+
+        return panel;
+    }
 
     private static StackPanel BuildDetails(AlertStrings strings, string fileName, string rule, string confidence)
     {

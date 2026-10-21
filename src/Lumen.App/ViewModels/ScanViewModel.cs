@@ -793,6 +793,8 @@ public sealed class ScanViewModel : ObservableObject, IPageViewModel, IDisposabl
         {
             ScanPhase.Enumerating => Text.ScanPhaseEnumerating,
             ScanPhase.Inspecting => Text.ScanPhaseInspecting,
+            // The last phase takes a moment, and it is the perfect place for a
+            // joke that costs the user nothing but a smile.
             _ => Text.ScanPhaseFinishing
         };
         CurrentFileDisplay = string.IsNullOrWhiteSpace(progress.CurrentFile)

@@ -59,6 +59,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _services.SettingsChanged += OnSettingsChanged;
         _services.RealtimeDetected += OnRealtimeDetected;
         _services.Alerts.QuarantineRequested += OnQuarantineRequested;
+        _services.Alerts.StopProcessRequested += OnStopProcessRequested;
         _services.Alerts.AlertSuppressed += OnAlertSuppressed;
         Text.LanguageChanged += OnLanguageChanged;
 
@@ -295,6 +296,61 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// The user asked for the programs running the flagged file to be stopped.
+    ///
+    /// The click on the alert button IS the confirmation, so the automatic switch is
+    /// not needed. Every other safety rule still applies: the remediation engine
+    /// refuses protected and system processes, re-checks the protection at the
+    /// moment of the action, and writes every action and every refusal to the audit
+    /// journal.
+    /// </summary>
+    private async void OnStopProcessRequested(object? sender, string path)
+    {
+        try
+        {
+            var result = await _services.RealtimeKill.KillAsync(
+                new RealtimeKillRequest
+                {
+                    FilePath = path,
+                    Findings = [new Finding
+                    {
+                        RuleId = "alert.stop-process",
+                        Title = Text.QuarantineAlertTitle,
+                        Category = FindingCategory.Heuristic,
+                        Confidence = Confidence.High,
+                        Summary = "The user asked for the program using this file to be stopped.",
+                        Detail = "Stopped from the detection alert.",
+                        Advice = "The file was not changed."
+                    }],
+                    DetectedUtc = _services.Clock.UtcNow
+                },
+                approvedProcessIds: null,
+                cancellationToken: CancellationToken.None,
+                userConfirmed: true).ConfigureAwait(true);
+
+            if (result.StoppedCount > 0)
+            {
+                _services.Dialogs.ShowMessage(
+                    Text.StopProcessDoneTitle,
+                    Text.StopProcessDoneBody(result.StoppedCount),
+                    MessageSeverity.Success);
+                _services.NotifyDataChanged();
+            }
+            else if (result.Status != RealtimeKillStatus.Refused)
+            {
+                _services.Dialogs.ShowMessage(
+                    Text.StopProcessFailedTitle,
+                    result.Message,
+                    MessageSeverity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            _services.Log.Warn("Alert", "The program could not be stopped.", ex);
+        }
+    }
+
+    /// <summary>
     /// A detection was recorded but no loud alert was shown. The status line says
     /// so, so the user knows that Lumen saw something without being interrupted.
     /// </summary>
@@ -453,6 +509,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _services.SettingsChanged -= OnSettingsChanged;
         _services.RealtimeDetected -= OnRealtimeDetected;
         _services.Alerts.QuarantineRequested -= OnQuarantineRequested;
+        _services.Alerts.StopProcessRequested -= OnStopProcessRequested;
         _services.Alerts.AlertSuppressed -= OnAlertSuppressed;
         Text.LanguageChanged -= OnLanguageChanged;
 
