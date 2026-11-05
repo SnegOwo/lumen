@@ -20,22 +20,53 @@
 
 </div>
 
-[![Watch the video — I forced an AI to build the best antivirus](https://i.ytimg.com/vi/ZeSmtoD2rUI/hqdefault.jpg)](https://youtu.be/ZeSmtoD2rUI)
+<div align="center">
 
-<div align="center"><sub><a href="https://youtu.be/ZeSmtoD2rUI">▶ Watch the experiment on YouTube</a></sub></div>
+<a href="https://youtu.be/ZeSmtoD2rUI">
+  <img src="https://i.ytimg.com/vi/ZeSmtoD2rUI/maxresdefault.jpg" alt="J'ai FORCÉ une IA à CRÉER le MEILLEUR ANTIVIRUS" width="760">
+</a>
+
+**The experiment, in one sentence:** an AI model was handed a product brief for an antivirus and
+wrote every line of it. Then I ran it in a virtual machine, broke it, and made it fix itself — one
+commit at a time. The video is the story. This repository is what it actually produced.
+
+▶ **[Watch the video on YouTube](https://youtu.be/ZeSmtoD2rUI)**
+
+</div>
 
 > [!WARNING]
 > **This is an experiment, not a security product.**
 > Lumen does not protect anything. It has 66 hand-written heuristics and no signature database, so a
 > clean result means nothing. It is unsigned, it is not audited, and it was written by a language
-> model. **Run it in a disposable virtual machine and keep Microsoft Defender enabled.** No prebuilt
-> binary is distributed here: build it yourself, or don't run it at all.
+> model. **Run it in a disposable virtual machine and keep Microsoft Defender enabled.** The release
+> ZIP is unsigned: SmartScreen will warn you, and it is right to.
 
 ![Lumen in motion — title card and the five main pages](docs/media/lumen.gif)
 
 **English** · [Français](#francais)
 
 ---
+
+## Download
+
+The **self-contained, unsigned build** used in the video is attached to the
+[v2.0.0 release](https://github.com/SnegOwo/lumen/releases/tag/v2.0.0):
+
+| | |
+|---|---|
+| **File** | [`Lumen-2.0.0-win-x64.zip`](https://github.com/SnegOwo/lumen/releases/download/v2.0.0/Lumen-2.0.0-win-x64.zip) — 61 MB |
+| **SHA-256** | `FD2FEE07EC4D1E772E34761888DF04D5B1D11F11D0A72D2B738AA686CBBC6E0C` |
+| **Requirements** | Windows 10 / 11, x64. No .NET installation needed — the runtime is inside `Lumen.exe`. |
+| **How to start** | Unzip, then run `Start Lumen (isolated).cmd`. Everything Lumen writes stays in a `data` folder next to the script. |
+
+Windows SmartScreen and Microsoft Defender will very likely warn you about the executable. It is
+unsigned, and it is a program that stops processes — that warning is doing its job. If you are not
+comfortable with that, build it from source instead. That is the honest option, and it is four lines
+above.
+
+> [!IMPORTANT]
+> Run it in a **virtual machine**, not on the machine you care about. The ZIP is a demo, not a
+> product: there is no installer, no code signing, no auto-update, and no support.
 
 ## What this is
 
@@ -362,10 +393,31 @@ once more, then run it in a VM.
 > Lumen ne protège rien. Il possède 66 heuristiques écrites à la main et aucune base de signatures :
 > un résultat propre ne veut donc rien dire. Il n'est pas signé, il n'a pas été audité, et il a été
 > écrit par un modèle de langage. **Lancez-le dans une machine virtuelle jetable et gardez Microsoft
-> Defender activé.** Aucun binaire prêt à l'emploi n'est distribué ici : compilez-le vous-même, ou ne
-> l'exécutez pas.
+> Defender activé.** Le ZIP de la release n'est pas signé : SmartScreen va vous prévenir, et il a
+> raison.
 
 ![Lumen en mouvement — carte de titre et les cinq pages principales](docs/media/lumen.gif)
+
+### Télécharger
+
+La **version autonome et non signée** utilisée dans la vidéo est attachée à la
+[release v2.0.0](https://github.com/SnegOwo/lumen/releases/tag/v2.0.0) :
+
+| | |
+|---|---|
+| **Fichier** | [`Lumen-2.0.0-win-x64.zip`](https://github.com/SnegOwo/lumen/releases/download/v2.0.0/Lumen-2.0.0-win-x64.zip) — 61 Mo |
+| **SHA-256** | `FD2FEE07EC4D1E772E34761888DF04D5B1D11F11D0A72D2B738AA686CBBC6E0C` |
+| **Prérequis** | Windows 10 / 11, x64. Aucune installation de .NET : le runtime est dans `Lumen.exe`. |
+| **Pour lancer** | Dézippez, puis lancez `Start Lumen (isolated).cmd`. Tout ce que Lumen écrit reste dans un dossier `data` à côté du script. |
+
+SmartScreen et Microsoft Defender vont très probablement vous alerter sur l'exécutable. Il n'est pas
+signé, et c'est un programme qui arrête des processus : l'avertissement fait son travail. Si ça vous
+met mal à l'aise, compilez depuis les sources — c'est l'option honnête.
+
+> [!IMPORTANT]
+> Lancez-le dans une **machine virtuelle**, pas sur la machine à laquelle vous tenez. Le ZIP est une
+> démo, pas un produit : pas d'installeur, pas de signature de code, pas de mise à jour, pas de
+> support.
 
 ### Ce que c'est
 
@@ -396,6 +448,8 @@ noyau, il ne touche jamais au réseau, et il ne supprime jamais rien en silence.
   pas votre antivirus.
 
 ### L'expérience
+
+**La vidéo : [J'ai FORCÉ une IA à CRÉER le MEILLEUR ANTIVIRUS](https://youtu.be/ZeSmtoD2rUI).**
 
 **Le modèle.** Lumen a été écrit par **[MiniMax M3.1 Flash](https://huggingface.co/MiniMaxAI/MiniMax-M3.1-Flash)**
 (`MiniMaxAI/MiniMax-M3.1-Flash`).
