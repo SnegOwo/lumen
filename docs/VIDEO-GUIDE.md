@@ -1,5 +1,10 @@
 # Recording "I tried an AI-made antivirus"
 
+> [!NOTE]
+> This shot list was written for the original **v1.0** recording, when Lumen had 51 rules and 189
+> tests. The current build ships **66 rules** and **428 test methods**; the shots and the advice are
+> unchanged.
+
 A shot list for the video. Everything here runs against a **disposable virtual machine**.
 Nothing in this guide touches a real machine's files, and the app can be run in a mode
 where it never watches a real folder.

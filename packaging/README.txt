@@ -7,7 +7,7 @@ WHAT THIS IS
     move a match into an encrypted quarantine vault you can restore or delete.
 
 WHAT IT IS NOT
-    It is not a replacement for Microsoft Defender. It has 51 documented rules and
+    It is not a replacement for Microsoft Defender. It has 66 documented rules and
     no signatures database. It never touches the network. It does not block files
     before they run - it inspects them after they are written. A clean result does
     not mean safe.
